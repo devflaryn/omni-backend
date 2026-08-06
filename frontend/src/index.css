@@ -1,0 +1,19 @@
+body {
+    background-color: #0f0f10;
+    color: #eee;
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.home {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+.home h1 {
+    font-size: 3rem;
+    letter-spacing: 2px;
+}
