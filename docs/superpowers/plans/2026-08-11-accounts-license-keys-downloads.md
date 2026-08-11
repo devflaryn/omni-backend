@@ -487,6 +487,14 @@ describe('computeSubscriptionAfterRedeem', () => {
         const result = computeSubscriptionAfterRedeem({ plan: 'lifetime', expiresAt: null }, 'lifetime', now);
         assert.deepEqual(result, { plan: 'lifetime', expiresAt: null });
     });
+
+    it('clamps a month-end date to the target month\'s last day instead of overflowing', () => {
+        // Jan 31 + 1 month must land on Feb 28 (2026 is not a leap year),
+        // not overflow past February into March 3rd.
+        const janEnd = new Date('2026-01-31T00:00:00Z');
+        const result = computeSubscriptionAfterRedeem({ plan: null, expiresAt: null }, '1_month', janEnd);
+        assert.equal(result.expiresAt.toISOString(), '2026-02-28T00:00:00.000Z');
+    });
 });
 ```
 
@@ -509,8 +517,14 @@ export class LicenseKeyError extends Error {
 }
 
 function addMonths(date, months) {
+    // Clamp to the target month's last day instead of letting setMonth()
+    // overflow (e.g. Jan 31 + 1 month must land on Feb 28, not Mar 3).
+    const originalDay = date.getDate();
     const result = new Date(date.getTime());
+    result.setDate(1);
     result.setMonth(result.getMonth() + months);
+    const daysInTargetMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(originalDay, daysInTargetMonth));
     return result;
 }
 
