@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 import LicenseKey from '../models/licenseKey.model.js';
 import { generateKeyCode } from '../utils/generateKeyCode.js';
 import { computeSubscriptionAfterRedeem } from '../utils/applyLicenseKey.js';
@@ -45,6 +47,12 @@ export const generateKeys = async (req, res, next) => {
 };
 
 export const redeemKey = async (req, res, next) => {
+    // Both writes (the user's new subscription and the key's redeemed
+    // status) must land together — a crash between them would otherwise
+    // hand out the subscription while leaving the key reusable. Follows
+    // the same session/transaction pattern as auth.controller.js's signUp.
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { code } = req.body;
         if (typeof code !== 'string' || !code.trim()) {
@@ -53,7 +61,7 @@ export const redeemKey = async (req, res, next) => {
             throw error;
         }
 
-        const key = await LicenseKey.findOne({ code: code.trim() });
+        const key = await LicenseKey.findOne({ code: code.trim() }).session(session);
         if (!key) {
             const error = new Error('Key not found');
             error.statusCode = 404;
@@ -66,15 +74,20 @@ export const redeemKey = async (req, res, next) => {
         }
 
         req.user.subscription = computeSubscriptionAfterRedeem(req.user.subscription, key.plan);
-        await req.user.save();
+        await req.user.save({ session });
 
         key.status = 'redeemed';
         key.redeemedBy = req.user._id;
         key.redeemedAt = new Date();
-        await key.save();
+        await key.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         res.status(200).json({ success: true, data: { subscription: req.user.subscription } });
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         next(error);
     }
 };
