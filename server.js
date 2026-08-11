@@ -36,10 +36,16 @@ app.get('*', (req, res) => {
 
 app.use(errorMiddleware);
 
-app.listen(PORT, "0.0.0.0", async () => {
-    console.log(`✅ Server running on port ${PORT}`);
+// Importing this module (e.g. from a test file) must never bind a real
+// port or open a second DB connection — only `node server.js` does that.
+const isMainModule = process.argv[1] === __filename;
 
-    await connectToDatabase();
-});
+if (isMainModule) {
+    app.listen(PORT, "0.0.0.0", async () => {
+        console.log(`✅ Server running on port ${PORT}`);
+
+        await connectToDatabase();
+    });
+}
 
 export default app;
