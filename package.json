@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node start.js",
+    "dev": "nodemon start.js",
     "test": "node --test 'backend/tests/**/*.test.js'",
     "promote-admin": "node scripts/promote-admin.js",
     "seed-test-artifact": "node scripts/seed-test-artifact.js"
