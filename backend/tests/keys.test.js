@@ -7,6 +7,9 @@ import connectToDatabase from '../src/database/mongodb.js';
 import User from '../src/models/user.model.js';
 import LicenseKey from '../src/models/licenseKey.model.js';
 
+// These HTTP-level tests rely on Arcjet's detectBot({ mode: "LIVE" }) not
+// blocking loopback/local-network requests. If that ever changes, requests
+// here would need the browser-like headers documented in scripts/smoke-test.sh.
 describe('keys API', () => {
     let adminToken, adminEmail, userToken, userEmail;
     const createdCodes = [];

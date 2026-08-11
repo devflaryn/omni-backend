@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import LicenseKey from '../models/licenseKey.model.js';
+import User from '../models/user.model.js';
 import { generateKeyCode } from '../utils/generateKeyCode.js';
 import { computeSubscriptionAfterRedeem } from '../utils/applyLicenseKey.js';
 
@@ -73,8 +74,9 @@ export const redeemKey = async (req, res, next) => {
             throw error;
         }
 
-        req.user.subscription = computeSubscriptionAfterRedeem(req.user.subscription, key.plan);
-        await req.user.save({ session });
+        const user = await User.findById(req.user._id).session(session);
+        user.subscription = computeSubscriptionAfterRedeem(user.subscription, key.plan);
+        await user.save({ session });
 
         key.status = 'redeemed';
         key.redeemedBy = req.user._id;
@@ -84,7 +86,7 @@ export const redeemKey = async (req, res, next) => {
         await session.commitTransaction();
         session.endSession();
 
-        res.status(200).json({ success: true, data: { subscription: req.user.subscription } });
+        res.status(200).json({ success: true, data: { subscription: user.subscription } });
     } catch (error) {
         await session.abortTransaction();
         session.endSession();

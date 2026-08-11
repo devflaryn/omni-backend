@@ -6,6 +6,9 @@ import app from '../../server.js';
 import connectToDatabase from '../src/database/mongodb.js';
 import User from '../src/models/user.model.js';
 
+// These HTTP-level tests rely on Arcjet's detectBot({ mode: "LIVE" }) not
+// blocking loopback/local-network requests. If that ever changes, requests
+// here would need the browser-like headers documented in scripts/smoke-test.sh.
 describe('app smoke test', () => {
     before(async () => {
         await connectToDatabase();
@@ -22,7 +25,9 @@ describe('app smoke test', () => {
             .send({ email, password: 'hunter22' });
         assert.equal(signUp.status, 201);
 
-        const users = await request(app).get('/api/v1/users');
+        const users = await request(app)
+            .get('/api/v1/users')
+            .set('Authorization', `Bearer ${signUp.body.data.token}`);
         assert.equal(users.status, 200);
         assert.ok(users.body.data.some((u) => u.email === email));
 

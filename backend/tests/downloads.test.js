@@ -11,6 +11,9 @@ import User from '../src/models/user.model.js';
 import Artifact from '../src/models/artifact.model.js';
 import { DOWNLOADS_ROOT } from '../src/controllers/downloads.controller.js';
 
+// These HTTP-level tests rely on Arcjet's detectBot({ mode: "LIVE" }) not
+// blocking loopback/local-network requests. If that ever changes, requests
+// here would need the browser-like headers documented in scripts/smoke-test.sh.
 describe('downloads API', () => {
     let userToken, userEmail;
     const testRelativePath = 'qemu/windows/_test-artifact.txt';
@@ -41,7 +44,7 @@ describe('downloads API', () => {
 
     after(async () => {
         await User.deleteOne({ email: userEmail });
-        await Artifact.deleteMany({ version: '0.0.0-test' });
+        await Artifact.deleteMany({ version: { $in: ['0.0.0-test', '0.0.0-test-traversal'] } });
         fs.rmSync(path.join(DOWNLOADS_ROOT, testRelativePath), { force: true });
         await mongoose.connection.close();
     });
@@ -77,5 +80,22 @@ describe('downloads API', () => {
             .get('/api/v1/downloads/file/qemu/macos')
             .set('Authorization', `Bearer ${userToken}`);
         assert.equal(res.status, 404);
+    });
+
+    it('rejects a path-traversal artifact filename', async () => {
+        await Artifact.create({
+            category: 'base_image',
+            platform: 'linux',
+            version: '0.0.0-test-traversal',
+            filename: '../../../../etc/passwd',
+            sha256: crypto.createHash('sha256').update('irrelevant').digest('hex'),
+            sizeBytes: 0,
+        });
+
+        const res = await request(app)
+            .get('/api/v1/downloads/file/base_image/linux')
+            .set('Authorization', `Bearer ${userToken}`);
+        assert.equal(res.status, 500);
+        assert.equal(res.body.message, 'Invalid artifact path');
     });
 });
