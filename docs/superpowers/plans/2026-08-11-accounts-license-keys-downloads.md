@@ -163,7 +163,11 @@ describe('generateKeyCode', () => {
 
     it('excludes ambiguous characters (0, O, 1, I)', () => {
         const code = generateKeyCode();
-        assert.doesNotMatch(code, /[01OI]/);
+        // Check only the generated part — the literal "OMNI-" prefix
+        // itself contains O and I, so checking the whole string would
+        // always fail.
+        const generatedPart = code.replace(/^OMNI-/, '').replace(/-/g, '');
+        assert.doesNotMatch(generatedPart, /[01OI]/);
     });
 
     it('produces distinct codes across many calls', () => {
