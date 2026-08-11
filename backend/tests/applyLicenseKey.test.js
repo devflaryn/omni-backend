@@ -41,4 +41,12 @@ describe('computeSubscriptionAfterRedeem', () => {
         const result = computeSubscriptionAfterRedeem({ plan: 'lifetime', expiresAt: null }, 'lifetime', now);
         assert.deepEqual(result, { plan: 'lifetime', expiresAt: null });
     });
+
+    it('clamps a month-end date to the target month\'s last day instead of overflowing', () => {
+        // Jan 31 + 1 month must land on Feb 28 (2026 is not a leap year),
+        // not overflow past February into March 3rd.
+        const janEnd = new Date('2026-01-31T00:00:00Z');
+        const result = computeSubscriptionAfterRedeem({ plan: null, expiresAt: null }, '1_month', janEnd);
+        assert.equal(result.expiresAt.toISOString(), '2026-02-28T00:00:00.000Z');
+    });
 });

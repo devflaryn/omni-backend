@@ -7,8 +7,14 @@ export class LicenseKeyError extends Error {
 }
 
 function addMonths(date, months) {
+    // Clamp to the target month's last day instead of letting setMonth()
+    // overflow (e.g. Jan 31 + 1 month must land on Feb 28, not Mar 3).
+    const originalDay = date.getDate();
     const result = new Date(date.getTime());
+    result.setDate(1);
     result.setMonth(result.getMonth() + months);
+    const daysInTargetMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(originalDay, daysInTargetMonth));
     return result;
 }
 
