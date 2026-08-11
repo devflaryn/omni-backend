@@ -39,7 +39,7 @@ Edit `omni-backend/package.json` — add a `test` entry to `"scripts"`:
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "test": "node --test backend/tests"
+    "test": "node --test 'backend/tests/**/*.test.js'"
   },
 ```
 
