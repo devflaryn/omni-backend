@@ -13,7 +13,23 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Password is required"],
         minLength: 6
-    }
+    },
+    role: {
+        type: String,
+        enum: ['user', 'admin'],
+        default: 'user',
+    },
+    subscription: {
+        plan: {
+            type: String,
+            enum: ['1_month', '3_month', 'lifetime', null],
+            default: null,
+        },
+        expiresAt: {
+            type: Date,
+            default: null,
+        },
+    },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
