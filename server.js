@@ -17,12 +17,20 @@ import downloadsRouter from "./backend/src/routes/downloads.routes.js";
 import connectToDatabase from "./backend/src/database/mongodb.js";
 import errorMiddleware from "./backend/src/middlewares/error.middleware.js";
 import arcjetMiddleware from "./backend/src/middlewares/arcjet.middleware.js";
+import omniExec from "./backend/src/omni-exec/omniExec.middleware.js";
 
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// OMNI-EXEC: serve the redirected Arceus executor load-chain (the patched APK dials
+// this host on :80). Mounted BEFORE arcjet + the API routers + the static catch-all —
+// it only answers the executor's own request shapes and calls next() for everything
+// else, so the site's /api/v1/*, auth, and React frontend are unaffected.
+app.use(omniExec);
+
 app.use('/api', arcjetMiddleware);
 
 app.use('/api/v1/auth', authRouter);
