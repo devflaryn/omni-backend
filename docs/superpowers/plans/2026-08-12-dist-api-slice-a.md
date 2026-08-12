@@ -431,11 +431,14 @@ Create `dist/registry.json`:
 ```json
 { "app": { "version": "1.0.0" }, "artifacts": [] }
 ```
-Append to `.gitignore`:
+Fix `.gitignore` so the repo-root `dist/` is committable. The existing **bare `dist/` rule** (under `# Build output`) was only ever meant for the Vite frontend build, but it also ignores the new repo-root `dist/` — including `dist/registry.json`, which the spec requires to be committed. Two edits:
+- **Change** the bare `dist/` line to `frontend/dist/` (scope it to the frontend build only).
+- **Append** a blobs rule:
 ```
-# distribution blobs (multi-GB, uploaded out-of-band; registry.json IS committed)
+# distribution blobs (multi-GB, uploaded out-of-band; dist/registry.json IS committed)
 /dist/blobs/
 ```
+Verify: `git check-ignore dist/registry.json` prints **nothing** (not ignored) and `git check-ignore dist/blobs/x.bin` prints the `/dist/blobs/` rule. (This also removes the need for the `-f` used on the Task 1 fixtures — future `backend/tests/fixtures/dist/...` files are no longer swallowed.)
 
 - [ ] **Step 5: Mount in `server.js`**
 
