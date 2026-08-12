@@ -37,7 +37,7 @@ export function createDistRouter(registry) {
 
     res.status(200);
     res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Type', 'application/octet-stream');
     if (entry.sha256) {
       res.setHeader('ETag', `"${entry.sha256}"`);
       res.setHeader('X-Omni-SHA256', entry.sha256);

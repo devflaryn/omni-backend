@@ -39,7 +39,7 @@ test('blob streams full body with sha256 headers', async () => {
   assert.equal(r.headers['content-length'], '11');
   assert.equal(r.headers['x-omni-sha256'],
     'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9');
-  assert.equal(r.text, 'hello world');
+  assert.equal(Buffer.from(r.body).toString(), 'hello world');
 });
 
 test('blob honors Range with 206', async () => {
@@ -47,14 +47,14 @@ test('blob honors Range with 206', async () => {
   assert.equal(r.status, 206);
   assert.equal(r.headers['content-range'], 'bytes 0-4/11');
   assert.equal(r.headers['content-length'], '5');
-  assert.equal(r.text, 'hello');
+  assert.equal(Buffer.from(r.body).toString(), 'hello');
 });
 
 test('blob suffix Range works', async () => {
   const r = await request(makeApp()).get('/omni/dist/blob/tiny-mac').set('Range', 'bytes=-5');
   assert.equal(r.status, 206);
   assert.equal(r.headers['content-range'], 'bytes 6-10/11');
-  assert.equal(r.text, 'world');
+  assert.equal(Buffer.from(r.body).toString(), 'world');
 });
 
 test('unsatisfiable Range -> 416', async () => {
