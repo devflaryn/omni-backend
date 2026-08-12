@@ -1,1 +1,28 @@
-{ "app": { "version": "1.0.0" }, "artifacts": [] }
+{
+  "app": {
+    "version": "1.0.0"
+  },
+  "artifacts": [
+    {
+      "name": "base-arm",
+      "os": "mac",
+      "channel": "stable",
+      "version": "lineage-23.2",
+      "dest": "images/arm",
+      "unpack": "tar",
+      "file": "base-arm.tar",
+      "bytes": 3882966016,
+      "sha256": "843b061bdc9dd8c242a42fa1c483a295e1af095355e06771308606bb7ef97927"
+    },
+    {
+      "name": "offset-arceus-arm",
+      "os": "mac",
+      "channel": "stable",
+      "version": "2.732.1043",
+      "dest": "images/arm",
+      "file": "offset-arceus-arm.qcow2",
+      "bytes": 378929152,
+      "sha256": "a8509349a91e8b5bc596d4b88d837b4b14e53f85ac28050b3bbbbec557c88e66"
+    }
+  ]
+}
