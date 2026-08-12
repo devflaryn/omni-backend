@@ -19,6 +19,8 @@ import errorMiddleware from "./backend/src/middlewares/error.middleware.js";
 import arcjetMiddleware from "./backend/src/middlewares/arcjet.middleware.js";
 import omniExec from "./backend/src/omni-exec/omniExec.middleware.js";
 import execBridge from "./backend/src/omni-exec/execBridge.js";
+import { loadRegistry } from "./backend/src/omni-exec/registry.js";
+import { createDistRouter } from "./backend/src/omni-exec/distApi.js";
 
 const app = express();
 
@@ -35,6 +37,9 @@ app.use(omniExec);
 // OMNI-EXEC remote-execute bridge (GUI -> queue -> in-game poller). Not under /api,
 // so arcjet doesn't touch it; mounted before the static catch-all.
 app.use('/omni/exec', execBridge);
+
+// OMNI-EXEC distribution API (installer pulls artifacts by name; VPS now, 302->CDN later).
+app.use('/omni/dist', createDistRouter(loadRegistry(path.join(__dirname, 'dist'))));
 
 app.use('/api', arcjetMiddleware);
 

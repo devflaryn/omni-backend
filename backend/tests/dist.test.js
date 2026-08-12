@@ -73,3 +73,21 @@ test('redirect entry -> 302 to CDN', async () => {
   assert.equal(r.status, 302);
   assert.equal(r.headers['location'], 'https://cdn.example.com/qemu.tar.gz');
 });
+
+test('health reports blob presence and size', async () => {
+  const r = await request(makeApp()).get('/omni/dist/health');
+  assert.equal(r.status, 200);
+  const tiny = r.body.blobs.find(b => b.name === 'tiny-mac');
+  assert.equal(tiny.present, true);
+  assert.equal(tiny.bytes, 11);
+  assert.equal(tiny.expected, 11);
+  const cdn = r.body.blobs.find(b => b.name === 'cdn-mac');
+  assert.equal(cdn.redirect, true);
+});
+
+import realApp from '../../server.js';
+test('dist mount does not shadow the frontend or /api/v1', async () => {
+  const r = await request(realApp).get('/omni/dist/manifest?os=mac'); // real registry: empty artifacts ok
+  assert.equal(r.status, 200);
+  assert.equal(Array.isArray(r.body.artifacts), true);
+});

@@ -61,5 +61,19 @@ export function createDistRouter(registry) {
     fs.createReadStream(file, { start, end }).pipe(res);
   });
 
+  // Ops sanity: which blobs are present + size-correct (no hashing — sizes only).
+  router.get('/health', (req, res) => {
+    const blobs = [];
+    for (const os of ['mac', 'win']) {
+      for (const a of registry.list(os)) {
+        if (a.redirect) { blobs.push({ name: a.name, redirect: true }); continue; }
+        let present = false, bytes = null;
+        try { bytes = fs.statSync(path.join(blobsDir, a.file)).size; present = true; } catch {}
+        blobs.push({ name: a.name, present, bytes, expected: a.bytes ?? null });
+      }
+    }
+    res.json({ ok: true, app: registry.appVersion, blobs });
+  });
+
   return router;
 }
