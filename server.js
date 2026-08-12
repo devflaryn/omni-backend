@@ -18,6 +18,7 @@ import connectToDatabase from "./backend/src/database/mongodb.js";
 import errorMiddleware from "./backend/src/middlewares/error.middleware.js";
 import arcjetMiddleware from "./backend/src/middlewares/arcjet.middleware.js";
 import omniExec from "./backend/src/omni-exec/omniExec.middleware.js";
+import execBridge from "./backend/src/omni-exec/execBridge.js";
 
 const app = express();
 
@@ -30,6 +31,10 @@ app.use(cookieParser());
 // it only answers the executor's own request shapes and calls next() for everything
 // else, so the site's /api/v1/*, auth, and React frontend are unaffected.
 app.use(omniExec);
+
+// OMNI-EXEC remote-execute bridge (GUI -> queue -> in-game poller). Not under /api,
+// so arcjet doesn't touch it; mounted before the static catch-all.
+app.use('/omni/exec', execBridge);
 
 app.use('/api', arcjetMiddleware);
 

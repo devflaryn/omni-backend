@@ -154,5 +154,51 @@ local ok, err = pcall(function()
     end
     dragTap(toggle, toggle, function() setOpen(not isOpen) end)
     dragTap(win, bar, nil)
+
+    -- ===== remote execute bridge: poll our server for scripts to run (MANUAL only) =====
+    -- The Omni Executor GUI submits Luau to /omni/exec/submit keyed by this account's
+    -- username; we poll, loadstring() it, and report the result. Nothing auto-runs.
+    task.spawn(function()
+        local OMNI_BASE   = "__OMNI_BASE__"                    -- injected by the server
+        local HttpService = game:GetService("HttpService")
+        local Players     = game:GetService("Players")
+        local httprequest = (syn and syn.request) or (http and http.request) or http_request or request
+        while not Players.LocalPlayer do task.wait(0.4) end
+        local channel = tostring(Players.LocalPlayer.Name)     -- = omnidroid account name
+        local function report(id, okr, output)
+            if not httprequest then return end
+            pcall(function()
+                httprequest({
+                    Url = OMNI_BASE.."/omni/exec/result",
+                    Method = "POST",
+                    Headers = {["Content-Type"]="application/json"},
+                    Body = HttpService:JSONEncode({channel=channel, id=id, ok=okr and true or false, output=tostring(output):sub(1,7000)}),
+                })
+            end)
+        end
+        status.Text = "● exec bridge ready ("..channel..")"
+        while true do
+            local gok, body = pcall(function()
+                return game:HttpGet(OMNI_BASE.."/omni/exec/poll?channel="..HttpService:UrlEncode(channel), true)
+            end)
+            if gok and type(body)=="string" and #body > 2 then
+                local job; pcall(function() job = HttpService:JSONDecode(body) end)
+                if job and type(job.script)=="string" and job.id then
+                    status.Text = "● exec: running "..tostring(job.id).."…"
+                    local fn, cerr = loadstring(job.script)
+                    if not fn then
+                        report(job.id, false, "compile error: "..tostring(cerr))
+                        status.Text = "● exec: compile error"
+                    else
+                        local rok, rret = pcall(fn)
+                        local out = rok and (rret ~= nil and tostring(rret) or "ok") or ("runtime error: "..tostring(rret))
+                        report(job.id, rok, out)
+                        status.Text = rok and ("● exec ✓ "..tostring(job.id)) or ("● exec error: "..tostring(rret):sub(1,36))
+                    end
+                end
+            end
+            task.wait(1)
+        end
+    end)
 end)
 if not ok then warn("[OMNI-EXEC UI] error: "..tostring(err)) end

@@ -164,7 +164,11 @@ export default function omniExec(req, res, next) {
   // ---- fetch#2: the menu. Serve our CUSTOM UI if present, else the rewritten real gist.
   if (p === '/gist' || p.endsWith('/gist') || p.endsWith('gist_arceus_latest')) {
     const custom = readPayload('custom_ui.lua');
-    if (custom) return send(res, 200, 'text/plain; charset=utf-8', custom);
+    if (custom) {
+      // inject the public base so the in-game exec-bridge knows where to poll
+      const ui = custom.toString('utf8').split('__OMNI_BASE__').join(LOCAL_BASE);
+      return send(res, 200, 'text/plain; charset=utf-8', Buffer.from(ui, 'utf8'));
+    }
     const g = readPayload('gist_arceus_latest');
     if (g) return send(res, 200, 'text/plain; charset=utf-8', Buffer.from(uiModify(rewriteLocal(g.toString('utf8'))), 'utf8'));
     return send(res, 404, 'text/plain; charset=utf-8', Buffer.from(''));
