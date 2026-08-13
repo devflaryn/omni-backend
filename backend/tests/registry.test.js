@@ -11,7 +11,8 @@ test('loadRegistry lists by os and channel', () => {
   assert.equal(reg.appVersion, '1.0.0');
   const mac = reg.list('mac');
   assert.deepEqual(mac.map(a => a.name).sort(), ['base-arm', 'cdn-mac', 'offset-arceus-arm', 'tiny-mac']);
-  assert.equal(reg.list('win').length, 1);
+  assert.deepEqual(reg.list('win').map(a => a.name).sort(),
+    ['base-x86', 'offset-arceus-x86', 'qemu-win', 'tiny-win']);
   assert.equal(reg.list('mac', 'beta').length, 0);
 });
 

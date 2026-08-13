@@ -103,3 +103,45 @@ test('manifest exposes dest_name for bare-blob artifacts', async () => {
   const base = res.body.artifacts.find(a => a.name === 'base-arm');
   assert.equal(base.dest_name ?? null, null); // tar artifact: no dest_name
 });
+
+/* --- Windows/x86 runtime (Slice C) -------------------------------------
+ * A Windows client asks for ?os=win and must get the x86 Bliss base, the
+ * baked x86 arceus offset, and a QEMU installer it can self-install from.
+ * The os field is a flat string, so a win entry is never returned to mac.
+ */
+test('manifest os=win returns the x86 base, the x86 offset and qemu', async () => {
+  const res = await request(makeApp()).get('/omni/dist/manifest?os=win');
+  assert.equal(res.status, 200);
+  const names = res.body.artifacts.map(a => a.name);
+  assert.ok(names.includes('base-x86'), 'x86 base present');
+  assert.ok(names.includes('offset-arceus-x86'), 'x86 arceus offset present');
+  assert.ok(names.includes('qemu-win'), 'qemu installer present');
+
+  const base = res.body.artifacts.find(a => a.name === 'base-x86');
+  assert.equal(base.dest, 'images/x86');
+  assert.equal(base.unpack, 'tar');
+  assert.equal(base.dest_name ?? null, null);   // tar artifact
+});
+
+test('the x86 offset lands beside the /data template it overlays', async () => {
+  // A qcow2 backing reference resolves relative to the overlay's OWN
+  // directory, so an offset written anywhere but images/x86 will not open.
+  const res = await request(makeApp()).get('/omni/dist/manifest?os=win');
+  const off = res.body.artifacts.find(a => a.name === 'offset-arceus-x86');
+  assert.equal(off.dest, 'images/x86');
+  assert.match(off.dest_name, /^base_x86_data_offset_.+\.qcow2$/);
+});
+
+test('qemu-win is delivered as a redirect, not a stored blob', async () => {
+  const r = await request(makeApp()).get('/omni/dist/blob/qemu-win');
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.location);
+});
+
+test('win artifacts never leak into the mac manifest', async () => {
+  const res = await request(makeApp()).get('/omni/dist/manifest?os=mac');
+  const names = res.body.artifacts.map(a => a.name);
+  for (const n of ['base-x86', 'offset-arceus-x86', 'qemu-win']) {
+    assert.ok(!names.includes(n), `${n} must not be offered to mac`);
+  }
+});

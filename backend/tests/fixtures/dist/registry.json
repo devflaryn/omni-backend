@@ -18,6 +18,16 @@
     { "name": "tiny-win", "os": "win", "channel": "stable", "version": "1",
       "file": "tiny.bin", "bytes": 11,
       "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
-      "dest": "images/x86" }
+      "dest": "images/x86" },
+    { "name": "base-x86", "os": "win", "channel": "stable", "version": "1",
+      "file": "tiny.bin", "bytes": 11,
+      "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "dest": "images/x86", "unpack": "tar" },
+    { "name": "offset-arceus-x86", "os": "win", "channel": "stable", "version": "1",
+      "file": "tiny.bin", "bytes": 11,
+      "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "dest": "images/x86", "dest_name": "base_x86_data_offset_arceusfixture.qcow2" },
+    { "name": "qemu-win", "os": "win", "channel": "stable", "version": "1",
+      "dest": "qemu", "redirect": "https://cdn.example.com/qemu-w64-setup.exe" }
   ]
 }

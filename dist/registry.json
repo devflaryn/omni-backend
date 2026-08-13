@@ -38,6 +38,27 @@
       "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. The bootable x86 arceus offset is NOT yet baked — see the Slice C plan."
     },
     {
+      "name": "offset-arceus-x86",
+      "os": "win",
+      "channel": "stable",
+      "version": "2.732.1043",
+      "dest": "images/x86",
+      "dest_name": "base_x86_data_offset_arceusremote.qcow2",
+      "file": "offset-arceus-x86.qcow2",
+      "bytes": 783745024,
+      "sha256": "814a1029ba67ca4fb28d3afc1b9c331ebbaf430604169ba485f8fffe652b19a6",
+      "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting — the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
+    },
+    {
+      "name": "qemu-win",
+      "os": "win",
+      "channel": "stable",
+      "version": "20260811",
+      "dest": "qemu",
+      "redirect": "https://qemu.weilnetz.de/w64/qemu-w64-setup-20260811.exe",
+      "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing — doing it here fixes every client without a new release."
+    },
+    {
       "name": "omnidroid-bundle",
       "os": "win",
       "channel": "handoff",
