@@ -96,6 +96,43 @@ describe('accounts API (cloud cookie store)', () => {
         assert.equal(seen.presence.label, 'Running on Mac mini');
     });
 
+    it('shows a non-ASCII machine name back correctly', async () => {
+        // HTTP header values are latin-1. The Mac is called "Berat’ın Mac mini"
+        // (U+2019, dotless i), which the client percent-encodes because sending
+        // it raw made its own http stack raise before the request left the box.
+        // What matters is that the name a user reads in "Running on ..." is the
+        // name of their machine, not a mangled one.
+        const name = 'Berat’ın Mac mini';
+        await request(app)
+            .post(`/api/v1/accounts/${NAME}/state`)
+            .set('Authorization', `Bearer ${alice.token}`)
+            .set('X-Omni-Device-Id', 'device-mac-2')
+            .set('X-Omni-Device-Name', encodeURIComponent(name))
+            .set('X-Omni-Device-Os', 'darwin')
+            .send({ state: 'running' });
+
+        const seen = await request(app)
+            .get('/api/v1/accounts')
+            .set('Authorization', `Bearer ${alice.token}`)
+            .set('X-Omni-Device-Id', 'device-win-9');
+        const row = seen.body.data.accounts.find((a) => a.username === NAME);
+        assert.equal(row.presence.label, `Running on ${name}`);
+
+        // hand the lease back so the ordering of the tests below is unchanged
+        await request(app)
+            .post(`/api/v1/accounts/${NAME}/state`)
+            .set('Authorization', `Bearer ${alice.token}`)
+            .set('X-Omni-Device-Id', 'device-mac-2')
+            .send({ state: 'stopped' });
+        await request(app)
+            .post(`/api/v1/accounts/${NAME}/state`)
+            .set('Authorization', `Bearer ${alice.token}`)
+            .set('X-Omni-Device-Id', 'device-mac-1')
+            .set('X-Omni-Device-Name', 'Mac mini')
+            .set('X-Omni-Device-Os', 'darwin')
+            .send({ state: 'running' });
+    });
+
     it('will not let a different device clear someone else\'s running lease', async () => {
         const res = await request(app)
             .post(`/api/v1/accounts/${NAME}/state`)

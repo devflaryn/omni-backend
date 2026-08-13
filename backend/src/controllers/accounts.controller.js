@@ -18,12 +18,30 @@ function badUsername(name) {
     return !(typeof name === 'string' && USERNAME_RE.test(name));
 }
 
+/**
+ * A header value that may be percent-encoded Unicode.
+ *
+ * Header values are latin-1, and a device name is whatever a human called
+ * their machine — "Berat’ın Mac mini" has a U+2019 and a dotless i. The client
+ * percent-encodes it; decoding here is tolerant because a plain ASCII name is
+ * sent unchanged, and a malformed sequence must not 500 a heartbeat.
+ */
+function decodeHeader(value) {
+    const raw = (value || '').toString();
+    if (!raw) return null;
+    try {
+        return decodeURIComponent(raw);
+    } catch {
+        return raw;
+    }
+}
+
 /** Device identity comes from headers so every call carries it without a body. */
 function deviceOf(req) {
     const h = req.headers;
     return {
         deviceId: (h['x-omni-device-id'] || '').toString().slice(0, 128) || null,
-        deviceName: (h['x-omni-device-name'] || '').toString().slice(0, 128) || null,
+        deviceName: (decodeHeader(h['x-omni-device-name']) || '').slice(0, 128) || null,
         os: (h['x-omni-device-os'] || '').toString().slice(0, 32) || null,
     };
 }
