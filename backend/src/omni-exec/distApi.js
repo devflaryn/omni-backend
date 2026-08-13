@@ -20,6 +20,7 @@ export function createDistRouter(registry) {
     const artifacts = registry.list(os, channel).map(a => ({
       name: a.name, version: a.version, bytes: a.bytes ?? null, sha256: a.sha256 ?? null,
       url: `/omni/dist/blob/${a.name}`, dest: a.dest, unpack: a.unpack || null,
+      dest_name: a.dest_name ?? null,
     }));
     res.json({ ok: true, os, channel, app: { version: registry.appVersion }, artifacts });
   });
