@@ -165,6 +165,10 @@ local ok, err = pcall(function()
         local httprequest = (syn and syn.request) or (http and http.request) or http_request or request
         while not Players.LocalPlayer do task.wait(0.4) end
         local channel = tostring(Players.LocalPlayer.Name)     -- = omnidroid account name
+        -- Declared BEFORE report() so report closes over this local. Declared
+        -- after, `OMNI_TOKEN` inside report would resolve as a global and always
+        -- read nil — the result post would then be rejected as unauthenticated.
+        local OMNI_TOKEN = nil
         local function report(id, okr, output)
             if not httprequest then return end
             pcall(function()
@@ -172,15 +176,44 @@ local ok, err = pcall(function()
                     Url = OMNI_BASE.."/omni/exec/result",
                     Method = "POST",
                     Headers = {["Content-Type"]="application/json"},
-                    Body = HttpService:JSONEncode({channel=channel, id=id, ok=okr and true or false, output=tostring(output):sub(1,7000)}),
+                    Body = HttpService:JSONEncode({t=OMNI_TOKEN, id=id, ok=okr and true or false, output=tostring(output):sub(1,7000)}),
                 })
             end)
+        end
+
+        -- The queue is no longer readable by channel name alone: claim a session
+        -- token first. The server only issues one while this account's OWNER has
+        -- a live launch registered for it, which is what stops a stranger who
+        -- knows the username from draining (or feeding) this session.
+        local function claim()
+            if not httprequest then return false end
+            local okc, resp = pcall(function()
+                return httprequest({
+                    Url = OMNI_BASE.."/omni/exec/claim",
+                    Method = "POST",
+                    Headers = {["Content-Type"]="application/json"},
+                    Body = HttpService:JSONEncode({channel=channel}),
+                })
+            end)
+            if not okc or not resp or not resp.Body then return false end
+            local parsed; pcall(function() parsed = HttpService:JSONDecode(resp.Body) end)
+            if parsed and parsed.token then OMNI_TOKEN = parsed.token; return true end
+            return false
+        end
+
+        status.Text = "● exec bridge: claiming session ("..channel..")"
+        while not OMNI_TOKEN do
+            if claim() then break end
+            task.wait(3)                                        -- the launch lease may not be up yet
         end
         status.Text = "● exec bridge ready ("..channel..")"
         while true do
             local gok, body = pcall(function()
-                return game:HttpGet(OMNI_BASE.."/omni/exec/poll?channel="..HttpService:UrlEncode(channel), true)
+                return game:HttpGet(OMNI_BASE.."/omni/exec/poll?t="..HttpService:UrlEncode(OMNI_TOKEN), true)
             end)
+            if not gok then                                     -- token expired / server restarted
+                if claim() then status.Text = "● exec bridge re-claimed ("..channel..")" end
+            end
             if gok and type(body)=="string" and #body > 2 then
                 local job; pcall(function() job = HttpService:JSONDecode(body) end)
                 if job and type(job.script)=="string" and job.id then

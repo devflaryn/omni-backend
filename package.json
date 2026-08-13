@@ -9,6 +9,7 @@
     "dev": "nodemon start.js",
     "test": "node --test 'backend/tests/**/*.test.js'",
     "promote-admin": "node scripts/promote-admin.js",
+    "seed-keys": "node scripts/seed-keys.js",
     "seed-test-artifact": "node scripts/seed-test-artifact.js",
     "dist:add": "node scripts/dist-add.mjs"
   },

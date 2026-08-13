@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+import { VALID_PLANS } from '../utils/applyLicenseKey.js';
+
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -22,7 +24,7 @@ const userSchema = new mongoose.Schema({
     subscription: {
         plan: {
             type: String,
-            enum: ['1_month', '3_month', 'lifetime', null],
+            enum: [...VALID_PLANS, null],
             default: null,
         },
         expiresAt: {
@@ -31,6 +33,17 @@ const userSchema = new mongoose.Schema({
         },
     },
 }, { timestamps: true });
+
+// The password hash must never leave the process. Every controller that answers
+// with a user document went through res.json() -> toJSON(), so stripping it here
+// closes the whole class of leak at once instead of one .select('-password') at
+// a time — sign-up and sign-in were both handing the bcrypt hash to the client.
+userSchema.set('toJSON', {
+    transform(_doc, ret) {
+        delete ret.password;
+        return ret;
+    },
+});
 
 const User = mongoose.model('User', userSchema);
 

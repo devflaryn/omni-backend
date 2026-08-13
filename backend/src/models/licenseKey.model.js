@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+import { VALID_PLANS } from '../utils/applyLicenseKey.js';
+
 const licenseKeySchema = new mongoose.Schema({
     code: {
         type: String,
@@ -8,7 +10,7 @@ const licenseKeySchema = new mongoose.Schema({
     },
     plan: {
         type: String,
-        enum: ['1_month', '3_month', 'lifetime'],
+        enum: VALID_PLANS,
         required: true,
     },
     status: {
@@ -16,10 +18,17 @@ const licenseKeySchema = new mongoose.Schema({
         enum: ['unused', 'redeemed', 'revoked'],
         default: 'unused',
     },
+    // Null for keys minted by scripts/seed-keys.js, which runs before any admin
+    // account can exist: sign-up now requires a key, so the very first keys have
+    // to come from somewhere other than an admin pressing a button.
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        default: null,
+    },
+    note: {
+        type: String,
+        default: null,
     },
     redeemedBy: {
         type: mongoose.Schema.Types.ObjectId,

@@ -6,6 +6,7 @@ import app from '../../server.js';
 import connectToDatabase from '../src/database/mongodb.js';
 import User from '../src/models/user.model.js';
 import LicenseKey from '../src/models/licenseKey.model.js';
+import { registerUser } from './helpers/signup.js';
 
 // These HTTP-level tests rely on Arcjet's detectBot({ mode: "LIVE" }) not
 // blocking loopback/local-network requests. If that ever changes, requests
@@ -17,18 +18,18 @@ describe('keys API', () => {
     before(async () => {
         await connectToDatabase();
 
-        adminEmail = `keys-admin-${Date.now()}@omni.test`;
-        const adminSignUp = await request(app)
-            .post('/api/v1/auth/sign-up')
-            .send({ email: adminEmail, password: 'hunter22' });
-        adminToken = adminSignUp.body.data.token;
+        const admin = await registerUser(app, { prefix: 'keys-admin' });
+        adminEmail = admin.email;
+        adminToken = admin.token;
+        createdCodes.push(admin.code);
         await User.updateOne({ email: adminEmail }, { role: 'admin' });
 
-        userEmail = `keys-user-${Date.now()}@omni.test`;
-        const userSignUp = await request(app)
-            .post('/api/v1/auth/sign-up')
-            .send({ email: userEmail, password: 'hunter22' });
-        userToken = userSignUp.body.data.token;
+        // A plain user, deliberately NOT on lifetime: the redeem tests below
+        // stack a time-boxed key on top, which lifetime would refuse (409).
+        const user = await registerUser(app, { prefix: 'keys-user', plan: '30_day' });
+        userEmail = user.email;
+        userToken = user.token;
+        createdCodes.push(user.code);
     });
 
     after(async () => {

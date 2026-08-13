@@ -9,24 +9,23 @@ import app from '../../server.js';
 import connectToDatabase from '../src/database/mongodb.js';
 import User from '../src/models/user.model.js';
 import Artifact from '../src/models/artifact.model.js';
+import LicenseKey from '../src/models/licenseKey.model.js';
 import { DOWNLOADS_ROOT } from '../src/controllers/downloads.controller.js';
+import { registerUser } from './helpers/signup.js';
 
 // These HTTP-level tests rely on Arcjet's detectBot({ mode: "LIVE" }) not
 // blocking loopback/local-network requests. If that ever changes, requests
 // here would need the browser-like headers documented in scripts/smoke-test.sh.
 describe('downloads API', () => {
-    let userToken, userEmail;
+    let userToken, userEmail, userKey;
     const testRelativePath = 'qemu/windows/_test-artifact.txt';
     const testContent = 'not a real qemu build, just test bytes\n';
 
     before(async () => {
         await connectToDatabase();
 
-        userEmail = `downloads-user-${Date.now()}@omni.test`;
-        const signUp = await request(app)
-            .post('/api/v1/auth/sign-up')
-            .send({ email: userEmail, password: 'hunter22' });
-        userToken = signUp.body.data.token;
+        ({ email: userEmail, token: userToken, code: userKey } =
+            await registerUser(app, { prefix: 'downloads-user' }));
 
         const absolutePath = path.join(DOWNLOADS_ROOT, testRelativePath);
         fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
@@ -44,6 +43,7 @@ describe('downloads API', () => {
 
     after(async () => {
         await User.deleteOne({ email: userEmail });
+        await LicenseKey.deleteOne({ code: userKey });
         await Artifact.deleteMany({ version: { $in: ['0.0.0-test', '0.0.0-test-traversal'] } });
         fs.rmSync(path.join(DOWNLOADS_ROOT, testRelativePath), { force: true });
         await mongoose.connection.close();

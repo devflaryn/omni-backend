@@ -3,9 +3,8 @@ import mongoose from 'mongoose';
 import LicenseKey from '../models/licenseKey.model.js';
 import User from '../models/user.model.js';
 import { generateKeyCode } from '../utils/generateKeyCode.js';
-import { computeSubscriptionAfterRedeem } from '../utils/applyLicenseKey.js';
+import { computeSubscriptionAfterRedeem, VALID_PLANS } from '../utils/applyLicenseKey.js';
 
-const VALID_PLANS = ['1_month', '3_month', 'lifetime'];
 const MAX_GENERATE_COUNT = 100;
 
 async function createUniqueKey(plan, createdBy, attemptsLeft = 5) {

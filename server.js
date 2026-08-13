@@ -13,6 +13,7 @@ import { PORT } from "./backend/src/config/env.js";
 import authRouter from "./backend/src/routes/auth.routes.js";
 import userRouter from "./backend/src/routes/user.routes.js";
 import keysRouter from "./backend/src/routes/keys.routes.js";
+import accountsRouter from "./backend/src/routes/accounts.routes.js";
 import downloadsRouter from "./backend/src/routes/downloads.routes.js";
 import connectToDatabase from "./backend/src/database/mongodb.js";
 import errorMiddleware from "./backend/src/middlewares/error.middleware.js";
@@ -46,6 +47,7 @@ app.use('/api', arcjetMiddleware);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/keys', keysRouter);
+app.use('/api/v1/accounts', accountsRouter);
 app.use('/api/v1/downloads', downloadsRouter);
 
 // TODO: add a production logic
