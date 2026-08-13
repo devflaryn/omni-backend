@@ -13,6 +13,7 @@ function makeApp() {
   app.use('/omni/dist', createDistRouter(loadRegistry(distDir)));
   return app;
 }
+const app = makeApp();
 
 test('manifest returns mac artifacts with blob urls', async () => {
   const r = await request(makeApp()).get('/omni/dist/manifest?os=mac');
@@ -90,4 +91,15 @@ test('dist mount does not shadow the frontend or /api/v1', async () => {
   const r = await request(realApp).get('/omni/dist/manifest?os=mac'); // real registry: empty artifacts ok
   assert.equal(r.status, 200);
   assert.equal(Array.isArray(r.body.artifacts), true);
+});
+
+test('manifest exposes dest_name for bare-blob artifacts', async () => {
+  const res = await request(app).get('/omni/dist/manifest?os=mac');
+  assert.equal(res.status, 200);
+  const offset = res.body.artifacts.find(a => a.name === 'offset-arceus-arm');
+  assert.ok(offset, 'offset artifact present');
+  assert.equal(typeof offset.dest_name, 'string');
+  assert.match(offset.dest_name, /^base_arm_data_offset_.+\.qcow2$/);
+  const base = res.body.artifacts.find(a => a.name === 'base-arm');
+  assert.equal(base.dest_name ?? null, null); // tar artifact: no dest_name
 });

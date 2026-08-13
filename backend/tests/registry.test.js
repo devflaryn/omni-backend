@@ -10,7 +10,7 @@ test('loadRegistry lists by os and channel', () => {
   const reg = loadRegistry(distDir);
   assert.equal(reg.appVersion, '1.0.0');
   const mac = reg.list('mac');
-  assert.deepEqual(mac.map(a => a.name).sort(), ['cdn-mac', 'tiny-mac']);
+  assert.deepEqual(mac.map(a => a.name).sort(), ['base-arm', 'cdn-mac', 'offset-arceus-arm', 'tiny-mac']);
   assert.equal(reg.list('win').length, 1);
   assert.equal(reg.list('mac', 'beta').length, 0);
 });

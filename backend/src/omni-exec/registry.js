@@ -18,10 +18,13 @@ export function loadRegistry(distDir) {
     distDir,
     appVersion: (data.app && data.app.version) || '0.0.0',
     list(os, channel = 'stable') {
-      return artifacts.filter(a => a.os === os && (a.channel || 'stable') === channel);
+      return artifacts
+        .filter(a => a.os === os && (a.channel || 'stable') === channel)
+        .map(a => ({ ...a, dest_name: a.dest_name ?? null }));
     },
     get(name) {
-      return artifacts.find(a => a.name === name) || null;
+      const e = artifacts.find(a => a.name === name) || null;
+      return e ? { ...e, dest_name: e.dest_name ?? null } : null;
     },
   };
 }
