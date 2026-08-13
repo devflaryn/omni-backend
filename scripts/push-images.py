@@ -65,6 +65,11 @@ RECIPES = {
         "subdir": "arm",
         "member": "base_arm_data_offset_arceusremote.qcow2",
     },
+    # App builds are produced by scripts/push-app.mjs, which already writes the
+    # zip into dist/blobs and records its size and sha256. Nothing to assemble
+    # here — just upload what is on disk.
+    "app-win": {"kind": "prebuilt"},
+    "app-mac": {"kind": "prebuilt"},
 }
 
 
@@ -115,7 +120,10 @@ def main():
                     help="keep the staged tar instead of deleting it")
     args = ap.parse_args()
 
-    registry = json.loads(REGISTRY.read_text())
+    # encoding is explicit on purpose: registry.json contains en/em dashes in
+    # its notes, and Path.read_text() defaults to the ANSI codepage on Windows —
+    # which decodes them as a UnicodeDecodeError and stops a publish dead.
+    registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
     by_name = {a["name"]: a for a in registry["artifacts"]}
 
     if args.list or not args.names:
@@ -141,7 +149,12 @@ def main():
             if not entry or not recipe:
                 sys.exit(f"unknown artifact {name!r}")
             print(f"[{name}] staging")
-            if recipe["kind"] == "tar":
+            if recipe["kind"] == "prebuilt":
+                local = Path(REPO) / "dist" / "blobs" / entry["file"]
+                if not local.exists():
+                    sys.exit(f"{local} is missing — build and register it first "
+                             f"(node scripts/push-app.mjs ...)")
+            elif recipe["kind"] == "tar":
                 local = build_tar(images, recipe, tmp / entry["file"])
             else:
                 local = images / recipe["subdir"] / recipe["member"]

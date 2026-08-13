@@ -21,6 +21,12 @@ export function createDistRouter(registry) {
       name: a.name, version: a.version, bytes: a.bytes ?? null, sha256: a.sha256 ?? null,
       url: `/omni/dist/blob/${a.name}`, dest: a.dest, unpack: a.unpack || null,
       dest_name: a.dest_name ?? null,
+      // "runtime" (the default) is a base image or offset the client installs
+      // into its runtime dir; "app" is a build of the desktop app itself.
+      // The client MUST tell them apart: an app build has no business in the
+      // first-boot download plan — you already have the app you are running —
+      // and a base image has no business being swapped in and relaunched.
+      kind: a.kind || 'runtime',
     }));
     res.json({ ok: true, os, channel, app: { version: registry.appVersion }, artifacts });
   });

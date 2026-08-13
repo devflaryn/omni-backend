@@ -20,7 +20,7 @@ export function loadRegistry(distDir) {
     list(os, channel = 'stable') {
       return artifacts
         .filter(a => a.os === os && (a.channel || 'stable') === channel)
-        .map(a => ({ ...a, dest_name: a.dest_name ?? null }));
+        .map(a => ({ ...a, dest_name: a.dest_name ?? null, kind: a.kind || 'runtime' }));
     },
     get(name) {
       const e = artifacts.find(a => a.name === name) || null;

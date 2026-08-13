@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.0"
+    "version": "1.0.2"
   },
   "artifacts": [
     {
@@ -33,9 +33,9 @@
       "dest": "images/x86",
       "unpack": "tar",
       "file": "base-x86.tar",
-      "bytes": 3028269056,
-      "sha256": "5dfb74f516db0b377f7cbfc36a2c69b87e26a5460c259cef51b884bbcf494062",
-      "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. The bootable x86 arceus offset is NOT yet baked — see the Slice C plan."
+      "bytes": 3028930560,
+      "sha256": "dbad36bc1bb7a787a2c79dc0a0ba416af8cf673ceed480e766d3270bb3bb078c",
+      "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. The bootable x86 arceus offset is NOT yet baked \u00e2\u20ac\u201d see the Slice C plan."
     },
     {
       "name": "offset-arceus-x86",
@@ -45,9 +45,9 @@
       "dest": "images/x86",
       "dest_name": "base_x86_data_offset_arceusremote.qcow2",
       "file": "offset-arceus-x86.qcow2",
-      "bytes": 783745024,
-      "sha256": "814a1029ba67ca4fb28d3afc1b9c331ebbaf430604169ba485f8fffe652b19a6",
-      "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting — the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
+      "bytes": 996016128,
+      "sha256": "7d16e35793c78f6f2eb25ca0bc1bc923bd5dfddb2f7aec4c50321df00c17dccb",
+      "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting \u00e2\u20ac\u201d the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
     },
     {
       "name": "qemu-win",
@@ -56,7 +56,7 @@
       "version": "20260811",
       "dest": "qemu",
       "redirect": "https://qemu.weilnetz.de/w64/qemu-w64-setup-20260811.exe",
-      "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing — doing it here fixes every client without a new release."
+      "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing \u00e2\u20ac\u201d doing it here fixes every client without a new release."
     },
     {
       "name": "omnidroid-bundle",
@@ -79,6 +79,20 @@
       "bytes": 143555583,
       "sha256": "f16b0f61f7668495f851413d4560ddfa7d13cfa91b13dac1a5df24f48692aae5",
       "notes": "Handoff only (fetch by name). The retargeted arm64 arceus build to bake onto the x86 base as base_x86_data_offset_arceusremote.qcow2."
+    },
+    {
+      "name": "app-win",
+      "os": "win",
+      "channel": "stable",
+      "kind": "app",
+      "version": "1.0.2",
+      "dest": "app",
+      "unpack": "zip",
+      "file": "omni-exec-win-1.0.2.zip",
+      "bytes": 43605258,
+      "sha256": "a4ea95bb3f3f01b2a45b3e1977d1959148f815bc4e1045cdabf52ae2d16bf3e9",
+      "root": "omni-exec",
+      "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
   ]
 }
