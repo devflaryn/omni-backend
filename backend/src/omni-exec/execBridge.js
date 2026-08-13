@@ -57,6 +57,7 @@ let seq = 0;
 
 const now = () => Date.now();
 const MAX_SCRIPT = 200_000;                // 200 KB cap per script
+const MAX_QUEUED = 50;                     // pending scripts per channel
 const JOB_TTL = 5 * 60 * 1000;             // an undelivered job is stale after 5 min
 const SESSION_TTL = 6 * 60 * 60 * 1000;    // a poll token outlives a long play session
 const CONNECTED_MS = 8000;                 // "a poller answered this recently"
@@ -104,8 +105,20 @@ router.post('/submit', ...guiGate, async (req, res, next) => {
         const account = await ownedAccount(req.user._id, channel);
         if (!account) return denyChannel(res, channel);
 
-        const id = `${now().toString(36)}-${(++seq).toString(36)}`;
         const q = queues.get(channel) || [];
+        if (q.length >= MAX_QUEUED) {
+            // An account with no live poller accumulates everything sent to it
+            // until the TTL sweeps it. Bounded so a user hammering Run against
+            // a session that never loaded cannot grow this process's memory by
+            // 200 KB a click for five minutes.
+            return res.status(429).json({
+                ok: false, error: 'queue_full',
+                message: `'${channel}' already has ${q.length} scripts waiting — `
+                    + `is the in-game UI loaded?`,
+            });
+        }
+
+        const id = `${now().toString(36)}-${(++seq).toString(36)}`;
         q.push({ id, script, ts: now(), ownerId: String(req.user._id) });
         queues.set(channel, q);
         const last = lastPoll.get(channel);
@@ -118,9 +131,11 @@ router.get('/result', ...guiGate, (req, res) => {
     const id = String(req.query.id || '');
     const r = results.get(id);
     if (!r) return res.json({ done: false });
-    if (r.ownerId && r.ownerId !== String(req.user._id)) {
-        // Job ids are short and sequential enough to guess; the output of
-        // someone else's script is theirs.
+    // Fails CLOSED on a null owner. A result whose submitter can no longer be
+    // established (its in-flight record aged out before the poller answered) is
+    // not "public" — and job ids are short and sequential enough to guess, so
+    // treating unknown as allowed would be a readable hole in the wall.
+    if (r.ownerId !== String(req.user._id)) {
         return res.status(403).json({ ok: false, error: 'not_your_job' });
     }
     res.json({ done: true, ok: r.ok, output: r.output });

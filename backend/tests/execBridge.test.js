@@ -122,3 +122,56 @@ describe('exec bridge ownership wall', () => {
         assert.equal(res.status, 403);
     });
 });
+
+describe('exec bridge limits', () => {
+    let alice;
+    const emails = [];
+    const codes = [];
+    const CHANNEL = `execlim${Date.now()}`;
+
+    before(async () => {
+        await connectToDatabase();
+        alice = await registerUser(app, { prefix: 'execlim' });
+        emails.push(alice.email); codes.push(alice.code);
+        await request(app)
+            .put(`/api/v1/accounts/${CHANNEL}`)
+            .set('Authorization', `Bearer ${alice.token}`)
+            .send({ cookie: 'c', userId: 1 });
+    });
+
+    after(async () => {
+        await RobloxAccount.deleteMany({ username: CHANNEL });
+        await User.deleteMany({ email: { $in: emails } });
+        await LicenseKey.deleteMany({ code: { $in: codes } });
+        await mongoose.connection.close();
+    });
+
+    it('bounds the queue for a channel nothing is polling', async () => {
+        // 50 allowed, the 51st refused: without a cap, clicking Run against a
+        // session that never loaded grows this process by 200 KB a click until
+        // the 5-minute TTL sweeps it.
+        let lastStatus = 200;
+        for (let i = 0; i < 55; i++) {
+            const res = await request(app)
+                .post('/omni/exec/submit')
+                .set('Authorization', `Bearer ${alice.token}`)
+                .send({ channel: CHANNEL, script: `print(${i})` });
+            lastStatus = res.status;
+            if (res.status !== 200) {
+                assert.equal(res.body.error, 'queue_full');
+                break;
+            }
+        }
+        assert.equal(lastStatus, 429, 'the queue must stop accepting eventually');
+    });
+
+    it('refuses a result whose submitter can no longer be established', async () => {
+        // Fails closed: a job id is short and guessable, so "owner unknown"
+        // must not read as "anyone may have it".
+        const res = await request(app)
+            .get('/omni/exec/result?id=definitely-not-a-real-job')
+            .set('Authorization', `Bearer ${alice.token}`);
+        assert.equal(res.status, 200);
+        assert.equal(res.body.done, false);
+    });
+});
