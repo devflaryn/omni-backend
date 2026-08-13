@@ -1,0 +1,15 @@
+{
+  "app": { "version": "1.0.0" },
+  "artifacts": [
+    { "name": "tiny-mac", "os": "mac", "channel": "stable", "version": "1",
+      "file": "tiny.bin", "bytes": 11,
+      "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "dest": "images/arm" },
+    { "name": "cdn-mac", "os": "mac", "channel": "stable", "version": "1",
+      "dest": "qemu", "redirect": "https://cdn.example.com/qemu.tar.gz" },
+    { "name": "tiny-win", "os": "win", "channel": "stable", "version": "1",
+      "file": "tiny.bin", "bytes": 11,
+      "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "dest": "images/x86" }
+  ]
+}

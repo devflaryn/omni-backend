@@ -62,7 +62,7 @@ typings/
 .next
 
 # Build output
-dist/
+frontend/dist/
 
 # Editors / IDEs / agent tooling
 .vscode/
@@ -78,3 +78,6 @@ desktop.ini
 # Download artifacts (large binaries, never commit)
 /storage/downloads/*
 !/storage/downloads/.gitkeep
+
+# distribution blobs (multi-GB, uploaded out-of-band; dist/registry.json IS committed)
+/dist/blobs/
