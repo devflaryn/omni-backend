@@ -59,6 +59,15 @@
       "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing \u00e2\u20ac\u201d doing it here fixes every client without a new release."
     },
     {
+      "name": "adb-win",
+      "os": "win",
+      "channel": "stable",
+      "version": "latest",
+      "dest": "platform-tools",
+      "redirect": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+      "notes": "Google's official platform-tools zip, served as a 302 rather than stored. omnidroid/adb.py shells the BARE NAME 'adb', so a machine without it fails every guest command at CreateProcess; the client unpacks this into %LOCALAPPDATA%\\OmniExec\\platform-tools and prepends that to PATH. Deliberately the 'latest' alias, not a dated build — it is the one platform-tools URL Google has never moved."
+    },
+    {
       "name": "omnidroid-bundle",
       "os": "win",
       "channel": "handoff",
