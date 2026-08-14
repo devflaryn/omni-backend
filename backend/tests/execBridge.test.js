@@ -115,11 +115,39 @@ describe('exec bridge ownership wall', () => {
         assert.equal(readByStranger.status, 403);
     });
 
-    it('refuses a claim for an account nobody has launched', async () => {
+    it('refuses a claim for an account that does not exist', async () => {
         const res = await request(app)
             .post('/omni/exec/claim')
             .send({ channel: `nosuchaccount${Date.now()}` });
         assert.equal(res.status, 403);
+        assert.equal(res.body.error, 'unknown_account');
+    });
+
+    it('claims over GET too, because in-game only HttpGet is guaranteed', async () => {
+        // Requiring POST left the poller looping on claim forever and never
+        // reaching the polling code: jobs queued, lastPollMsAgo null, and the
+        // editor reporting "No live session" over a loaded game.
+        const res = await request(app).get(`/omni/exec/claim?channel=${CHANNEL}`);
+        assert.equal(res.status, 200);
+        assert.ok(res.body.token);
+    });
+
+    it('accepts a result over GET when the executor has no POST', async () => {
+        const claim = await request(app).get(`/omni/exec/claim?channel=${CHANNEL}`);
+        const token = claim.body.token;
+        await request(app)
+            .post('/omni/exec/submit')
+            .set('Authorization', `Bearer ${alice.token}`)
+            .send({ channel: CHANNEL, script: 'print("get-report")' });
+        const poll = await request(app).get(`/omni/exec/poll?t=${token}`);
+        assert.ok(poll.body.id);
+        const reported = await request(app).get(
+            `/omni/exec/report?t=${token}&id=${poll.body.id}&ok=true&output=${encodeURIComponent('hi there')}`);
+        assert.equal(reported.status, 200);
+        const read = await request(app)
+            .get(`/omni/exec/result?id=${poll.body.id}`)
+            .set('Authorization', `Bearer ${alice.token}`);
+        assert.equal(read.body.output, 'hi there');
     });
 });
 

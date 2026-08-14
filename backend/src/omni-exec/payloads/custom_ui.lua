@@ -170,14 +170,26 @@ local ok, err = pcall(function()
         -- read nil — the result post would then be rejected as unauthenticated.
         local OMNI_TOKEN = nil
         local function report(id, okr, output)
-            if not httprequest then return end
+            if not OMNI_TOKEN then return end
+            -- Prefer POST (full 7 KB of output); fall back to a GET carrying a
+            -- truncated result, because an executor without httprequest would
+            -- otherwise run the script and silently report nothing back.
+            if httprequest then
+                local sent = pcall(function()
+                    httprequest({
+                        Url = OMNI_BASE.."/omni/exec/result",
+                        Method = "POST",
+                        Headers = {["Content-Type"]="application/json"},
+                        Body = HttpService:JSONEncode({t=OMNI_TOKEN, id=id, ok=okr and true or false, output=tostring(output):sub(1,7000)}),
+                    })
+                end)
+                if sent then return end
+            end
             pcall(function()
-                httprequest({
-                    Url = OMNI_BASE.."/omni/exec/result",
-                    Method = "POST",
-                    Headers = {["Content-Type"]="application/json"},
-                    Body = HttpService:JSONEncode({t=OMNI_TOKEN, id=id, ok=okr and true or false, output=tostring(output):sub(1,7000)}),
-                })
+                game:HttpGet(OMNI_BASE.."/omni/exec/report?t="..HttpService:UrlEncode(OMNI_TOKEN)
+                             .."&id="..HttpService:UrlEncode(tostring(id))
+                             .."&ok="..(okr and "true" or "false")
+                             .."&output="..HttpService:UrlEncode(tostring(output):sub(1,1500)), true)
             end)
         end
 
@@ -185,18 +197,19 @@ local ok, err = pcall(function()
         -- token first. The server only issues one while this account's OWNER has
         -- a live launch registered for it, which is what stops a stranger who
         -- knows the username from draining (or feeding) this session.
+        -- Claims over game:HttpGet, NOT httprequest. HttpGet is the one HTTP
+        -- call every executor provides; syn.request/http.request/request are
+        -- optional, and this executor does not expose one. Gating the claim on
+        -- httprequest left the poller spinning in the loop below forever, so it
+        -- never reached the polling code at all — jobs queued, lastPollMsAgo
+        -- null, and the GUI reporting "No live session" over a loaded game.
         local function claim()
-            if not httprequest then return false end
-            local okc, resp = pcall(function()
-                return httprequest({
-                    Url = OMNI_BASE.."/omni/exec/claim",
-                    Method = "POST",
-                    Headers = {["Content-Type"]="application/json"},
-                    Body = HttpService:JSONEncode({channel=channel}),
-                })
+            local okc, body = pcall(function()
+                return game:HttpGet(OMNI_BASE.."/omni/exec/claim?channel="
+                                    ..HttpService:UrlEncode(channel), true)
             end)
-            if not okc or not resp or not resp.Body then return false end
-            local parsed; pcall(function() parsed = HttpService:JSONDecode(resp.Body) end)
+            if not okc or type(body) ~= "string" then return false end
+            local parsed; pcall(function() parsed = HttpService:JSONDecode(body) end)
             if parsed and parsed.token then OMNI_TOKEN = parsed.token; return true end
             return false
         end

@@ -44,7 +44,7 @@ import { Router } from 'express';
 import authorize from '../middlewares/auth.middleware.js';
 import requireActiveSubscription from '../middlewares/subscription.middleware.js';
 import RobloxAccount from '../models/robloxAccount.model.js';
-import { isLeaseFresh } from '../utils/presence.js';
+
 
 const router = Router();
 
@@ -159,23 +159,48 @@ router.get('/status', ...guiGate, async (req, res, next) => {
 
 // ---- in-game side: session token, gated on a live owner launch -------------
 
-// in-game poller -> exchange a channel for a poll token
-router.post('/claim', async (req, res, next) => {
+/*
+ * Claim is reachable by GET as well as POST, and that is not tidiness.
+ *
+ * The in-game script runs inside Roblox, where the only HTTP call guaranteed
+ * to exist is `game:HttpGet` — a GET. A POST needs an executor-provided
+ * `syn.request`/`http.request`/`request`, and this executor does not always
+ * expose one. Requiring POST to claim meant the poller sat in its claim loop
+ * forever and never reached the polling code at all: `lastPollMsAgo: null`
+ * with jobs queued, reported as "No live session" while the game was plainly
+ * loaded. The old poller only ever needed HttpGet, so requiring more was a
+ * regression.
+ */
+async function claim(req, res, next) {
     try {
-        const channel = String(req.body?.channel ?? '').trim();
+        const channel = String(req.query?.channel ?? req.body?.channel ?? '').trim();
         if (!channel) return res.status(400).json({ ok: false, error: 'channel required' });
+        // The account must EXIST. It used to have to be under a fresh
+        // "running" lease as well, and that was over-tight: the lease is
+        // renewed only by the desktop app's heartbeat, so an instance launched
+        // from the CLI, or with the app closed, or before the first sync, could
+        // not be claimed — the in-game poller never got a token and the editor
+        // reported "No live session" over a game that was plainly loaded.
+        //
+        // Dropping it costs little. The wall is on SUBMIT, which needs a JWT,
+        // an active plan, and ownership of the channel. A poll token on its own
+        // drains a queue that only the owner can fill, so the worst a stranger
+        // who guesses a username can do is receive nothing.
         const account = await RobloxAccount.findOne({ username: channel });
-        if (!account || !isLeaseFresh(account.running)) {
+        if (!account) {
             return res.status(403).json({
-                ok: false, error: 'not_launched',
-                message: 'No live launch is registered for this account.',
+                ok: false, error: 'unknown_account',
+                message: 'No such account is registered.',
             });
         }
         const token = crypto.randomBytes(24).toString('base64url');
         sessions.set(token, { channel, ts: now() });
         res.json({ ok: true, token });
     } catch (error) { next(error); }
-});
+}
+
+router.get('/claim', claim);
+router.post('/claim', claim);
 
 // in-game poller -> next pending job (removed on delivery)
 router.get('/poll', (req, res) => {
@@ -187,6 +212,29 @@ router.get('/poll', (req, res) => {
     const job = q.shift();
     inFlight.set(job.id, { ownerId: job.ownerId, ts: now() });   // who to show the result to
     res.json({ id: job.id, script: job.script });
+});
+
+/*
+ * GET twin of the result post, for the same reason claim has one: reporting
+ * needs an executor-provided POST, and when the executor has none the script
+ * still RUNS but its output never comes back — the editor shows "no result
+ * yet" for a job that finished. Output is truncated hard because this rides in
+ * a query string.
+ */
+router.get('/report', (req, res) => {
+    const s = sessionFor(req);
+    if (!s) return res.status(403).json({ ok: false, error: 'no_session' });
+    const id = String(req.query.id || '');
+    if (!id) return res.status(400).json({ ok: false, error: 'id required' });
+    results.set(id, {
+        channel: s.channel,
+        ownerId: inFlight.get(id)?.ownerId ?? null,
+        ok: String(req.query.ok) === 'true',
+        output: String(req.query.output ?? '').slice(0, 2000),
+        ts: now(),
+    });
+    inFlight.delete(id);
+    res.json({ ok: true });
 });
 
 // in-game poller -> report result
