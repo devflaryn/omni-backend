@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.5"
+    "version": "1.0.6"
   },
   "artifacts": [
     {
@@ -85,12 +85,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.5.zip",
-      "bytes": 43605044,
-      "sha256": "088b6de36392d16a9e0934fa602026325d2caabb5d6b81edc79ae0a14b8bae96",
+      "file": "omni-exec-win-1.0.6.zip",
+      "bytes": 19115495,
+      "sha256": "f77c5f8df13031d9969ec20f7b14841c5923b3037ac9c9409fafea31122d844a",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
