@@ -74,6 +74,10 @@ RECIPES = {
     # dist/blobs and registers its size and sha256. It is not built from
     # images/, so there is nothing for this script to gather.
     "qemu-portable-win": {"kind": "prebuilt"},
+    # The user-facing installer, built by build-windows.ps1 -Installer and
+    # copied into dist/blobs. A stub, so it does NOT need republishing for
+    # each app release -- it fetches whatever app-win currently is.
+    "setup-win": {"kind": "prebuilt"},
 }
 
 

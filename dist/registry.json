@@ -1,8 +1,20 @@
 {
   "app": {
-    "version": "1.0.11"
+    "version": "1.0.12"
   },
   "artifacts": [
+    {
+      "name": "setup-win",
+      "os": "win",
+      "channel": "tools",
+      "kind": "tool",
+      "version": "1",
+      "dest": "setup",
+      "file": "OmniExecutorSetup.exe",
+      "bytes": 12965374,
+      "sha256": "f1ed94052edada78b7616740d7f361eb57947f9a0e1016b6701b1606eda550d5",
+      "notes": "The installer a new user downloads: http://72.62.59.232/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator."
+    },
     {
       "name": "base-arm",
       "os": "mac",
@@ -107,12 +119,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.11",
+      "version": "1.0.12",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.11.zip",
-      "bytes": 43625490,
-      "sha256": "d4d8bbfacfdbee57dfcf4bc944b8aadf56db98d5c5bfb271ed87a3b55308b05e",
+      "file": "omni-exec-win-1.0.12.zip",
+      "bytes": 43628793,
+      "sha256": "756c5cd2341fb5b57aa86116335a7a12c7709392989de1cf94f1fbe5eb8b3ce7",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
