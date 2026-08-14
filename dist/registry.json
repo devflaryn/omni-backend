@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.8"
+    "version": "1.0.11"
   },
   "artifacts": [
     {
@@ -50,6 +50,19 @@
       "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting \u00e2\u20ac\u201d the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
     },
     {
+      "name": "qemu-portable-win",
+      "os": "win",
+      "channel": "tools",
+      "kind": "tool",
+      "version": "11.0.50",
+      "dest": "qemu",
+      "unpack": "zip",
+      "file": "qemu-portable-win.zip",
+      "bytes": 80346200,
+      "sha256": "68687e17317c87269ab2b9eb32a0cb34435cc34a71f906536996c8c86a1af9c9",
+      "notes": "Pruned portable QEMU (x86_64 only: the three binaries omnidroid invokes, all DLLs, and share/ minus docs, icons and the non-x86 UEFI firmware). Exists so a fresh install needs NO administrator prompt -- the vendor NSIS installer is requireAdministrator, this is a zip into %LOCALAPPDATA%. The client prefers it over qemu-win whenever it is present."
+    },
+    {
       "name": "qemu-win",
       "os": "win",
       "channel": "stable",
@@ -65,7 +78,7 @@
       "version": "latest",
       "dest": "platform-tools",
       "redirect": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
-      "notes": "Google's official platform-tools zip, served as a 302 rather than stored. omnidroid/adb.py shells the BARE NAME 'adb', so a machine without it fails every guest command at CreateProcess; the client unpacks this into %LOCALAPPDATA%\\OmniExec\\platform-tools and prepends that to PATH. Deliberately the 'latest' alias, not a dated build — it is the one platform-tools URL Google has never moved."
+      "notes": "Google's official platform-tools zip, served as a 302 rather than stored. omnidroid/adb.py shells the BARE NAME 'adb', so a machine without it fails every guest command at CreateProcess; the client unpacks this into %LOCALAPPDATA%\\OmniExec\\platform-tools and prepends that to PATH. Deliberately the 'latest' alias, not a dated build \u2014 it is the one platform-tools URL Google has never moved."
     },
     {
       "name": "omnidroid-bundle",
@@ -94,12 +107,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.8",
+      "version": "1.0.11",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.8.zip",
-      "bytes": 43609526,
-      "sha256": "b15b57d93e1f097506e9f65b4f5e0cebaed53dc8d57cf54c98c7f198d0be3ce9",
+      "file": "omni-exec-win-1.0.11.zip",
+      "bytes": 43625490,
+      "sha256": "d4d8bbfacfdbee57dfcf4bc944b8aadf56db98d5c5bfb271ed87a3b55308b05e",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
