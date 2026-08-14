@@ -48,6 +48,43 @@ const file = `omni-exec-${osName}-${version}.zip`;
 const zipPath = path.join(BLOBS, file);
 fs.mkdirSync(BLOBS, { recursive: true });
 
+// Refuse an incomplete build BEFORE it can be published.
+//
+// A one-dir PyInstaller build whose COLLECT step was disturbed — by an
+// omni-exec.exe still running out of the same directory, which is easy to do —
+// still produces a launchable-looking tree. One was published at 31 MB with
+// ZERO frontend files in it: an app that would start and then show nothing.
+// The exe alone proves nothing; the frontend and the bundled engine are what
+// make it the product.
+const REQUIRED = [
+    process.platform === 'win32' ? 'omni-exec.exe' : 'omni-exec',
+    path.join('_internal', 'frontend', 'dist', 'index.html'),
+];
+for (const rel of REQUIRED) {
+    if (!fs.existsSync(path.join(buildDir, rel))) {
+        console.error(`[${name}] REFUSING to publish: ${rel} is missing from `
+            + `${buildDir}. The build is incomplete — rebuild with nothing `
+            + `running out of that directory.`);
+        process.exit(1);
+    }
+}
+const MIN_MB = 60;
+function treeSize(dir) {
+    let total = 0;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        total += e.isDirectory() ? treeSize(p) : fs.statSync(p).size;
+    }
+    return total;
+}
+const sizeMb = treeSize(buildDir) / 1048576;
+if (sizeMb < MIN_MB) {
+    console.error(`[${name}] REFUSING to publish: build is ${sizeMb.toFixed(0)} MB, `
+        + `expected at least ${MIN_MB} MB. A truncated COLLECT looks like this.`);
+    process.exit(1);
+}
+console.log(`[${name}] build looks complete (${sizeMb.toFixed(0)} MB)`);
+
 console.log(`[${name}] zipping ${buildDir}`);
 fs.rmSync(zipPath, { force: true });
 // Zip the build directory ITSELF, so the archive has one top-level folder and
