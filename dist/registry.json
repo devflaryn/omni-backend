@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.17"
+    "version": "1.0.18"
   },
   "artifacts": [
     {
@@ -62,19 +62,6 @@
       "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting \u00e2\u20ac\u201d the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
     },
     {
-      "name": "qemu-portable-win",
-      "os": "win",
-      "channel": "tools",
-      "kind": "tool",
-      "version": "11.0.50",
-      "dest": "qemu",
-      "unpack": "zip",
-      "file": "qemu-portable-win.zip",
-      "bytes": 80346200,
-      "sha256": "68687e17317c87269ab2b9eb32a0cb34435cc34a71f906536996c8c86a1af9c9",
-      "notes": "Pruned portable QEMU (x86_64 only: the three binaries omnidroid invokes, all DLLs, and share/ minus docs, icons and the non-x86 UEFI firmware). Exists so a fresh install needs NO administrator prompt -- the vendor NSIS installer is requireAdministrator, this is a zip into %LOCALAPPDATA%. The client prefers it over qemu-win whenever it is present."
-    },
-    {
       "name": "qemu-win",
       "os": "win",
       "channel": "stable",
@@ -119,14 +106,27 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.17",
+      "version": "1.0.18",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.17.zip",
-      "bytes": 43824113,
-      "sha256": "bf176901036a305b7d956343564d8689d2c85151626008ea8db7fc5da4419523",
+      "file": "omni-exec-win-1.0.18.zip",
+      "bytes": 43824618,
+      "sha256": "f71e3e5a06576602dce0028340ab71488f7d2d8194eca0834b935dcfb04e6b43",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
+    },
+    {
+      "name": "qemu-portable-win",
+      "os": "win",
+      "channel": "tools",
+      "version": "11.1.0",
+      "dest": "qemu",
+      "unpack": "zip",
+      "file": "qemu-portable-win-11.1.0.zip",
+      "bytes": 69196801,
+      "sha256": "782e91052aa7160d3ba23ca218e312644ebb1d878ee27862302aa6c43e00bd92",
+      "kind": "tool",
+      "notes": "Pruned portable QEMU (x86_64 only: the three binaries omnidroid invokes, all DLLs, and share/ minus docs, icons and the non-x86 UEFI firmware). Exists so a fresh install needs NO administrator prompt -- the vendor NSIS installer is requireAdministrator, this is a zip into %LOCALAPPDATA%. The client prefers it over qemu-win whenever it is present. 11.1.0 carries the QEMU_WINDOW_PANEL patch that qemu_proc sets: without it the guest adopts the host window's size instead of the panel it was given, which is the wrong-aspect-ratio bug."
     }
   ]
 }
