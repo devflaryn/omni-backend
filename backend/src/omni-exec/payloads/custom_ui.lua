@@ -236,8 +236,66 @@ local ok, err = pcall(function()
                         report(job.id, false, "compile error: "..tostring(cerr))
                         status.Text = "● exec: compile error"
                     else
-                        local rok, rret = pcall(fn)
-                        local out = rok and (rret ~= nil and tostring(rret) or "ok") or ("runtime error: "..tostring(rret))
+                        -- GIVE THE CHUNK THE EXECUTOR'S ENVIRONMENT.
+                        --
+                        -- A loadstring()'d chunk otherwise runs against a
+                        -- VANILLA Roblox global table, and `loadstring` does
+                        -- not exist there -- Roblox disables it, the executor
+                        -- injects its own into ITS environment only. Every
+                        -- real script in payloads/by-path/ begins with
+                        --
+                        --     loadstring(game:HttpGet("https://..."))()
+                        --
+                        -- so the very first call resolves to nil and the user
+                        -- gets "runtime error: :1: attempt to call a nil
+                        -- value" with nothing whatsoever to act on. The chunk
+                        -- compiled fine; it simply could not see the one
+                        -- function it needed.
+                        --
+                        -- Wrapped in pcall because setfenv/getfenv are
+                        -- deprecated in Luau and not every build exposes them;
+                        -- failing to set the env must not stop the run.
+                        pcall(function()
+                            local env
+                            if getgenv then env = getgenv() end
+                            if not env and getfenv then env = getfenv(1) end
+                            if env and setfenv then setfenv(fn, env) end
+                        end)
+                        local rok, rret = xpcall(fn, function(e)
+                            local tb = ""
+                            pcall(function()
+                                if debug and debug.traceback then
+                                    tb = "\n"..tostring(debug.traceback("", 2))
+                                end
+                            end)
+                            return tostring(e)..tb
+                        end)
+                        local out
+                        if rok then
+                            out = (rret ~= nil and tostring(rret) or "ok")
+                        else
+                            -- Say WHICH executor globals are absent. "attempt
+                            -- to call a nil value" names nothing on its own,
+                            -- and this is the difference between a report we
+                            -- can act on and another round of guessing.
+                            local miss = ""
+                            pcall(function()
+                                local want = {"loadstring", "getgenv", "gethui",
+                                              "setfenv", "request", "setclipboard"}
+                                local gone = {}
+                                for _, k in ipairs(want) do
+                                    local have = rawget(getfenv(1), k) ~= nil
+                                    if not have and getgenv then
+                                        have = getgenv()[k] ~= nil
+                                    end
+                                    if not have then gone[#gone + 1] = k end
+                                end
+                                if #gone > 0 then
+                                    miss = "  [missing: "..table.concat(gone, ", ").."]"
+                                end
+                            end)
+                            out = "runtime error: "..tostring(rret)..miss
+                        end
                         report(job.id, rok, out)
                         status.Text = rok and ("● exec ✓ "..tostring(job.id)) or ("● exec error: "..tostring(rret):sub(1,36))
                     end
