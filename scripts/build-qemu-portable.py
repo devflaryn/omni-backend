@@ -131,6 +131,14 @@ def main():
                     help="output zip (default dist/blobs/qemu-portable-win.zip)")
     ap.add_argument("--register", action="store_true",
                     help="also write the artifact into dist/registry.json")
+    ap.add_argument("--version-label", default=None,
+                    help="override the registry version string. The client "
+                         "upgrades on a sha256 receipt mismatch, NOT on this "
+                         "(see bootstrap.qemu_install_plan), so this is "
+                         "human-facing only -- but a patched build and the "
+                         "vendor build both report the same upstream version, "
+                         "and a registry an operator cannot read is how the "
+                         "wrong one gets shipped twice.")
     args = ap.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
@@ -159,7 +167,7 @@ def main():
             # QEMU look permanently un-ready (readiness == "the plan is
             # empty"). See bootstrap.plan_downloads.
             "kind": "tool",
-            "version": _qemu_version(Path(args.source)),
+            "version": args.version_label or _qemu_version(Path(args.source)),
             "dest": "qemu",
             "unpack": "zip",
             "file": out.name,
