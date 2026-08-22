@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.20"
+    "version": "1.0.22"
   },
   "artifacts": [
     {
@@ -41,13 +41,13 @@
       "name": "base-x86",
       "os": "win",
       "channel": "stable",
-      "version": "bliss-16.9.7",
+      "version": "bliss-16.9.7-kiosk-v6",
       "dest": "images/x86",
       "unpack": "tar",
       "file": "base-x86.tar",
-      "bytes": 3028930560,
-      "sha256": "dbad36bc1bb7a787a2c79dc0a0ba416af8cf673ceed480e766d3270bb3bb078c",
-      "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. The bootable x86 arceus offset is NOT yet baked \u00e2\u20ac\u201d see the Slice C plan."
+      "bytes": 3028275200,
+      "sha256": "8d2004ce33b33df340266430de3e34c42fb7254191de966a9ccd2e8cd67ccf1a",
+      "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. BASE v6 (2026-08-18): the baked /system/app/OmniKiosk was rebuilt from source. The previous bake predated launcher/src/com/omni/kiosk/SessionProvider.java, so its manifest declared a class its dex did not contain -- the kiosk crash-looped, no session cookie was delivered and no deep-link fired, i.e. every fresh install black-screened with no auto-login and no auto-join. Kernel and initrd are byte-identical to v5; only the system disk changed. The arceusremote offset is a /data overlay and is unchanged -- it did not need rebaking."
     },
     {
       "name": "offset-arceus-x86",
@@ -119,12 +119,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.20",
+      "version": "1.0.22",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.20.zip",
-      "bytes": 43871715,
-      "sha256": "66b05c014cee3d0d3e0c0029ac92aa10c4c91dc90ca1a859195ac750d1fa2f63",
+      "file": "omni-exec-win-1.0.22.zip",
+      "bytes": 43912232,
+      "sha256": "11c1c67a8df7e063682357a80f78242e8019cc9073c20fe8cbeb046a0b843fef",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
