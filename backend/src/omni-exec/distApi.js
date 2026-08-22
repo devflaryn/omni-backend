@@ -15,8 +15,8 @@ export function createDistRouter(registry) {
   router.get('/manifest', (req, res) => {
     const os = String(req.query.os || '');
     const channel = String(req.query.channel || 'stable');
-    if (os !== 'mac' && os !== 'win')
-      return res.status(400).json({ ok: false, error: 'os must be "mac" or "win"' });
+    if (os !== 'mac' && os !== 'win' && os !== 'linux')
+      return res.status(400).json({ ok: false, error: 'os must be "mac", "win", or "linux"' });
     const artifacts = registry.list(os, channel).map(a => ({
       name: a.name, version: a.version, bytes: a.bytes ?? null, sha256: a.sha256 ?? null,
       url: `/omni/dist/blob/${a.name}`, dest: a.dest, unpack: a.unpack || null,

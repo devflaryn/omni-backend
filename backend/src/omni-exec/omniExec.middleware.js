@@ -19,6 +19,7 @@ import { fileURLToPath } from 'url';
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const PAYL       = path.join(__dirname, 'payloads');
 const BYPATH     = path.join(PAYL, 'by-path');
+const UIDIR      = path.join(PAYL, 'ui');
 
 // The public base the executor was baked to call. The patched .so rewrites every
 // upstream host to `http://72.62.59.232` (port 80, no explicit port — forced by the
@@ -44,6 +45,55 @@ function rewriteLocal(text) {
 
 function readPayload(name) { try { return fs.readFileSync(path.join(PAYL, name)); } catch { return null; } }
 function readByPath(rel)   { try { return fs.readFileSync(path.join(BYPATH, rel)); } catch { return null; } }
+
+/*
+ * THE IN-GAME UI, assembled from payloads/ui/*.lua in FILENAME ORDER.
+ *
+ * The executor loads one chunk, so the modules are concatenated rather than
+ * required: the numeric prefixes (00_, 05_, 10_, ...) ARE the dependency order,
+ * and a module may use anything an earlier one defined. That makes the split a
+ * FILE split and not a scope split -- every module lands in the same Luau
+ * function, so `local OMNI` in 00_prelude is visible to all of them.
+ *
+ * Ordering is therefore load-bearing and `.sort()` is the mechanism. Inserting
+ * a module between two existing ones means choosing a prefix between theirs;
+ * renaming one to a number that sorts earlier than something it depends on
+ * breaks the chunk at load, which is why the manifest comment naming the
+ * modules in order is emitted into the payload itself.
+ *
+ * ONE pcall wraps the lot, matching what the single-file custom_ui.lua did: a
+ * partially-applied UI is worse than none, and the warn() carries the error to
+ * the executor console. Each module is preceded by a `--[[ file: ... ]]` banner
+ * so a syntax error can be traced back to the file it came from -- without it
+ * the only clue is a line number into a 1600-line chunk that exists nowhere on
+ * disk.
+ *
+ * Returns null when the directory is absent or empty, which is what keeps
+ * custom_ui.lua working as the fallback.
+ */
+function assembleUi() {
+  let names;
+  try {
+    names = fs.readdirSync(UIDIR).filter(n => n.endsWith('.lua')).sort();
+  } catch { return null; }
+  if (!names.length) return null;
+
+  const modules = names.map(name => {
+    const body = fs.readFileSync(path.join(UIDIR, name), 'utf8');
+    return `--[[ file: ${name} ]]\n${body}`;
+  });
+
+  return [
+    '-- OMNI-EXEC in-game UI.',
+    '-- Assembled from payloads/ui/ by omniExec.middleware.js; do not edit here.',
+    `-- modules, in load order: ${names.join(', ')}`,
+    'local __omni_ok, __omni_err = pcall(function()',
+    modules.join('\n'),
+    'end)',
+    'if not __omni_ok then warn("[OMNI-EXEC UI] error: "..tostring(__omni_err)) end',
+    '',
+  ].join('\n');
+}
 
 // map a request path -> by-path filename (github stores slashes; the capture used '_')
 function bypathName(p) {
@@ -163,10 +213,13 @@ export default function omniExec(req, res, next) {
 
   // ---- fetch#2: the menu. Serve our CUSTOM UI if present, else the rewritten real gist.
   if (p === '/gist' || p.endsWith('/gist') || p.endsWith('gist_arceus_latest')) {
-    const custom = readPayload('custom_ui.lua');
+    // payloads/ui/ is the current UI; custom_ui.lua is the single-file one it
+    // replaced and stays as the fallback, so a deployment that ships only the
+    // old payload still serves a working menu.
+    const custom = assembleUi() ?? readPayload('custom_ui.lua')?.toString('utf8');
     if (custom) {
       // inject the public base so the in-game exec-bridge knows where to poll
-      const ui = custom.toString('utf8').split('__OMNI_BASE__').join(LOCAL_BASE);
+      const ui = custom.split('__OMNI_BASE__').join(LOCAL_BASE);
       return send(res, 200, 'text/plain; charset=utf-8', Buffer.from(ui, 'utf8'));
     }
     const g = readPayload('gist_arceus_latest');
@@ -182,9 +235,19 @@ export default function omniExec(req, res, next) {
     data = readByPath(alt);
   }
   if (data) {
-    const isText = /\.(lua|json|txt|js|html|css)$/i.test(p) ||
-                   /_(init|adapter|version|freekey|authfile|bannedusers|announcement)/i.test(fn);
-    if (isText) return send(res, 200, 'text/plain; charset=utf-8', Buffer.from(rewriteLocal(data.toString('utf8')), 'utf8'));
+    // Serve-time host rewrite must reach EVERY text payload, including the
+    // extensionless script sources github serves (e.g. `EdgeIY.../…_source`,
+    // an ESP loader stub) -- an allowlist of extensions silently let those
+    // leak literal raw.githubusercontent.com fetch targets to the client. So
+    // the rule is inverted: anything that is not a known-binary type AND
+    // sniffs as UTF-8 text (no NUL byte in its head) is rewritten; genuine
+    // binaries (images) fall through untouched.
+    const isBinary = /\.(png|jpe?g|webp|gif|ico|bmp|so|apk|zip|gz|ttf|otf|woff2?)$/i.test(p);
+    const head = data.subarray(0, 1024);
+    const looksText = !head.includes(0);
+    if (!isBinary && looksText) {
+      return send(res, 200, 'text/plain; charset=utf-8', Buffer.from(rewriteLocal(data.toString('utf8')), 'utf8'));
+    }
     return send(res, 200, guessType(p), data);
   }
 
