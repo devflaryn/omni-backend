@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.22"
+    "version": "1.0.24"
   },
   "artifacts": [
     {
@@ -8,12 +8,12 @@
       "os": "win",
       "channel": "tools",
       "kind": "tool",
-      "version": "1",
+      "version": "2",
       "dest": "setup",
       "file": "OmniExecutorSetup.exe",
-      "bytes": 12965374,
-      "sha256": "f1ed94052edada78b7616740d7f361eb57947f9a0e1016b6701b1606eda550d5",
-      "notes": "The installer a new user downloads: http://72.62.59.232/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator."
+      "bytes": 12974050,
+      "sha256": "2591b584a6d643d7fbb0d19a93999b56d26a447bf031aba7573b94e6cb7282b2",
+      "notes": "The installer a new user downloads: http://72.62.59.232/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator. Version 2 (2026-08-22) replaces an existing install FILE BY FILE via bootstrap.replace_tree: version 1 could not replace a folder pinned by a live QEMU or window-lock and failed with WinError 183. REBUILD AND REPUBLISH THIS whenever installer.py or bootstrap.py changes -- the stub bundles both, and a fix left unbuilt is a fix that is not shipped."
     },
     {
       "name": "base-arm",
@@ -119,12 +119,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.22",
+      "version": "1.0.24",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.22.zip",
-      "bytes": 43912232,
-      "sha256": "11c1c67a8df7e063682357a80f78242e8019cc9073c20fe8cbeb046a0b843fef",
+      "file": "omni-exec-win-1.0.24.zip",
+      "bytes": 43916923,
+      "sha256": "01e61e11a604a8f5d259140ef14d0c05c869fca78065bf8de3efa1deee7fd770",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
