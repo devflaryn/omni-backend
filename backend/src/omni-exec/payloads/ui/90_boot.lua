@@ -12,6 +12,10 @@
 
 OMNI.startBridge()
 
+-- Autoexec runs alongside the bridge: it has its own wait-for-LocalPlayer and
+-- fetch, so it must not delay the glow or the bridge's claim loop.
+OMNI.runAutoexec()
+
 OMNI.playGlow(function()
     if OMNI.isOmnidroid then
         OMNI.showConnectedPopup()

@@ -62,6 +62,25 @@ const JOB_TTL = 5 * 60 * 1000;             // an undelivered job is stale after 
 const SESSION_TTL = 6 * 60 * 60 * 1000;    // a poll token outlives a long play session
 const CONNECTED_MS = 8000;                 // "a poller answered this recently"
 
+// ---- AUTOEXEC -------------------------------------------------------------
+//
+// Scripts the host drops in its autoexec directory, which the omnidroid engine
+// pushes here (keyed by the account's Roblox username) once per launch. The
+// in-game UI GETs them at session start and runLuau()s each — the executor's
+// own "autoexec folder", but sourced from the host and delivered over the one
+// HTTP call every executor provides (game:HttpGet), so it does not depend on
+// the executor exposing a writable workspace.
+//
+// SET is admin-gated (it runs code in a live session — the same privilege the
+// submit queue guards with a JWT; here the host holds a shared secret instead,
+// because the engine has no user credential). GET is public like /gist: the
+// worst it leaks is the scripts a channel would already run, and a channel a
+// stranger names simply has nothing stored.
+const autoexecStore   = new Map();          // channel -> { scripts:[{name,body}], ts }
+const AUTOEXEC_TTL    = 24 * 60 * 60 * 1000; // a stored bundle outlives a long session
+const MAX_AUTOEXEC    = 25;                  // files per channel
+const ADMIN_SECRET    = process.env.OMNI_EXEC_ADMIN_SECRET || 'omni-autoexec-dev-6f3a91';
+
 /** The account row for `channel`, but only if `userId` owns it. */
 function ownedAccount(userId, channel) {
     if (!channel) return null;
@@ -254,6 +273,41 @@ router.post('/result', (req, res) => {
     res.json({ ok: true });
 });
 
+// ---- autoexec: host engine SETs the bundle (admin-gated) -------------------
+router.post('/autoexec/set', (req, res) => {
+    if ((req.get('x-omni-admin') || '') !== ADMIN_SECRET) {
+        return res.status(403).json({ ok: false, error: 'forbidden' });
+    }
+    const channel = String(req.body?.channel ?? '').trim();
+    if (!channel) return res.status(400).json({ ok: false, error: 'channel required' });
+    const raw = Array.isArray(req.body?.scripts) ? req.body.scripts : [];
+    const scripts = raw
+        .filter(s => s && typeof s.body === 'string' && s.body.trim())
+        .slice(0, MAX_AUTOEXEC)
+        .map(s => ({
+            name: String(s.name ?? 'script').slice(0, 120),
+            body: String(s.body).slice(0, MAX_SCRIPT),
+        }));
+    if (scripts.length) {
+        autoexecStore.set(channel, { scripts, ts: now() });
+    } else {
+        // An empty push CLEARS a channel — dropping every file from the host
+        // dir has to actually stop them running, not leave the last set stuck.
+        autoexecStore.delete(channel);
+    }
+    res.json({ ok: true, channel, count: scripts.length });
+});
+
+// ---- autoexec: in-game GETs the bundle at session start (public, like /gist)
+router.get('/autoexec', (req, res) => {
+    const channel = String(req.query?.channel ?? '').trim()
+        || (sessionFor(req)?.channel ?? '');
+    const entry = channel ? autoexecStore.get(channel) : null;
+    const scripts = (entry && now() - entry.ts < AUTOEXEC_TTL) ? entry.scripts : [];
+    res.set('Access-Control-Allow-Origin', '*');
+    res.json({ ok: true, channel, scripts });
+});
+
 // housekeeping: drop jobs/results/sessions past their TTL so memory can't grow
 // unbounded
 setInterval(() => {
@@ -267,6 +321,8 @@ setInterval(() => {
     }
     const sessionCutoff = now() - SESSION_TTL;
     for (const [t, s] of sessions) if (s.ts < sessionCutoff) sessions.delete(t);
+    const autoexecCutoff = now() - AUTOEXEC_TTL;
+    for (const [ch, e] of autoexecStore) if (e.ts < autoexecCutoff) autoexecStore.delete(ch);
 }, 60 * 1000).unref();
 
 export default router;
