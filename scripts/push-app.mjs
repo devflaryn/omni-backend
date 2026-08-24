@@ -48,6 +48,32 @@ const file = `omni-exec-${osName}-${version}.zip`;
 const zipPath = path.join(BLOBS, file);
 fs.mkdirSync(BLOBS, { recursive: true });
 
+// Refuse a version that does not match the build's own APP_VERSION.
+//
+// This is the guard against the drift that shipped 1.0.25/1.0.26 as builds
+// still reporting 1.0.24: updates.py's APP_VERSION is what the running app
+// tells the world it is, and if it lags the number published here, every
+// client "updates" forever to a build that still claims the old version. The
+// build dir is `<omni-executor>/dist-XXXX/omni-exec`, so the source is two
+// levels up. If it cannot be read (a build from elsewhere), warn but proceed —
+// the check is a safety net, not a new hard dependency on repo layout.
+try {
+    const srcRoot = path.dirname(path.dirname(path.resolve(buildDir)));
+    const updatesPy = fs.readFileSync(path.join(srcRoot, 'updates.py'), 'utf8');
+    const m = updatesPy.match(/^APP_VERSION\s*=\s*["']([^"']+)["']/m);
+    if (m && m[1] !== version) {
+        console.error(
+            `version mismatch: publishing ${version} but the build's APP_VERSION `
+            + `is ${m[1]} (omni-executor/updates.py).\n`
+            + `Bump APP_VERSION to ${version} and REBUILD before publishing, or the `
+            + `installed app will report ${m[1]} forever and update in a loop.`);
+        process.exit(1);
+    }
+    if (!m) console.warn('[app-win] note: could not find APP_VERSION in updates.py to cross-check');
+} catch {
+    console.warn('[app-win] note: updates.py not found next to the build; skipping version cross-check');
+}
+
 // Refuse an incomplete build BEFORE it can be published.
 //
 // A one-dir PyInstaller build whose COLLECT step was disturbed — by an
