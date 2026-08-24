@@ -53,13 +53,13 @@
       "name": "offset-arceus-x86",
       "os": "win",
       "channel": "stable",
-      "version": "2.732.1043",
+      "version": "2.733.988",
       "dest": "images/x86",
       "dest_name": "base_x86_data_offset_arceusremote.qcow2",
       "file": "offset-arceus-x86.qcow2",
-      "bytes": 996016128,
-      "sha256": "7d16e35793c78f6f2eb25ca0bc1bc923bd5dfddb2f7aec4c50321df00c17dccb",
-      "notes": "Baked on a Windows/WHPX host 2026-08-13 from arceus-STATIC-REMOTE-v2.apk: a 747 MB thin COW overlay of x86/data-template-8g.qcow2, rebased to the bare backing name so images_dir stays relocatable. Verified booting \u00e2\u20ac\u201d the arm64-only APK runs through the base's libndk_translation bridge. MUST land in images/x86 beside the template it overlays, or the qcow2 backing reference will not resolve."
+      "bytes": 828309504,
+      "sha256": "68ab794a2229256b2177ae14a0af87cc4969187afd0019133337c40bab02d1f1",
+      "notes": "Arceus X NEO 2.3.1 / Roblox 2.733.988, host-redirected to 72.62.59.232"
     },
     {
       "name": "qemu-portable-win",
