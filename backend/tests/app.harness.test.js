@@ -21,7 +21,7 @@ describe('app smoke test', () => {
     });
 
     it('signs a new user up and lists it back', async () => {
-        const { email, token, code } = await registerUser(app, { prefix: 'harness' });
+        const { email, token, codes } = await registerUser(app, { prefix: 'harness' });
 
         const users = await request(app)
             .get('/api/v1/users')
@@ -32,29 +32,23 @@ describe('app smoke test', () => {
         assert.ok(users.body.data.every((u) => u.password === undefined));
 
         await User.deleteOne({ email });
-        await LicenseKey.deleteOne({ code });
+        await LicenseKey.deleteMany({ code: { $in: codes } });
     });
 
-    it('refuses to register without a valid license key', async () => {
-        const noKey = await request(app)
+    // Two tests stood here asserting the old contract: that sign-up refused a
+    // missing or invalid key, and that one key could not create two accounts.
+    // Sign-up takes no key at all now, so neither statement is meaningful — the
+    // "one key, one redemption" invariant they were really protecting moved to
+    // redeem, and keys.test.js asserts it there.
+    it('registers with no license key at all, on the free tier', async () => {
+        const email = `harness-free-${Date.now()}@omni.test`;
+        const res = await request(app)
             .post('/api/v1/auth/sign-up')
-            .send({ email: `harness-nokey-${Date.now()}@omni.test`, password: 'hunter22' });
-        assert.equal(noKey.status, 400);
+            .send({ email, username: `harnessfree${Date.now().toString(36)}`, password: 'hunter22' });
 
-        const badKey = await request(app)
-            .post('/api/v1/auth/sign-up')
-            .send({ email: `harness-badkey-${Date.now()}@omni.test`, password: 'hunter22', key: 'OMNI-XXXX-XXXX-XXXX' });
-        assert.equal(badKey.status, 404);
-    });
+        assert.equal(res.status, 201);
+        assert.equal(res.body.data.subscription.tier, 'free');
 
-    it('will not let one key create two accounts', async () => {
-        const first = await registerUser(app, { prefix: 'harness-reuse' });
-        const second = await request(app)
-            .post('/api/v1/auth/sign-up')
-            .send({ email: `harness-reuse2-${Date.now()}@omni.test`, password: 'hunter22', key: first.code });
-        assert.equal(second.status, 409);
-
-        await User.deleteOne({ email: first.email });
-        await LicenseKey.deleteOne({ code: first.code });
+        await User.deleteOne({ email });
     });
 });

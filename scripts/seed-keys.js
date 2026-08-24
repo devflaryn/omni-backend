@@ -1,10 +1,13 @@
 /*
  * Mint license keys straight into the database.
  *
- * Sign-up now requires a key, so the very first keys cannot come from the admin
- * endpoint (there is no admin yet, and there cannot be one until somebody signs
- * up). This script is that bootstrap, and doubles as the way to cut a batch
- * without going through HTTP.
+ * The admin endpoint that mints keys needs an admin, and promoting one needs an
+ * account to promote — so the first keys on a fresh database cannot come from
+ * HTTP. This script is that bootstrap, and doubles as the way to cut a batch
+ * without going through the API at all.
+ *
+ * A key no longer creates an account (sign-up is free); it puts an account that
+ * already exists on a plan, via POST /api/v1/keys/redeem.
  *
  *   node scripts/seed-keys.js                      # 2 of each plan
  *   node scripts/seed-keys.js 30_day 5             # 5 x 30-day

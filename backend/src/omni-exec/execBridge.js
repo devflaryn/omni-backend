@@ -42,7 +42,6 @@ import crypto from 'crypto';
 import { Router } from 'express';
 
 import authorize from '../middlewares/auth.middleware.js';
-import requireActiveSubscription from '../middlewares/subscription.middleware.js';
 import RobloxAccount from '../models/robloxAccount.model.js';
 
 
@@ -107,9 +106,18 @@ function sessionFor(req) {
     return s;
 }
 
-// ---- GUI side: authenticated, paid, and owner-scoped -----------------------
+// ---- GUI side: authenticated and owner-scoped ------------------------------
+//
+// requireActiveSubscription used to be the second element of this gate, back
+// when every account was a paid one. Sign-up is free now, and running a script
+// is the thing the app IS — gating it here would mean a new account could sign
+// in, add its Roblox accounts, and then be told to pay before it could execute
+// anything. Ownership is still enforced per request: ownedAccount() scopes
+// every channel to req.user._id, so free does not mean unscoped.
+//
+// This is the line to revisit when the free/premium feature split lands.
 
-const guiGate = [authorize, requireActiveSubscription];
+const guiGate = [authorize];
 
 // GUI -> queue a script for a channel
 router.post('/submit', ...guiGate, async (req, res, next) => {

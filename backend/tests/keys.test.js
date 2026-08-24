@@ -21,15 +21,17 @@ describe('keys API', () => {
         const admin = await registerUser(app, { prefix: 'keys-admin' });
         adminEmail = admin.email;
         adminToken = admin.token;
-        createdCodes.push(admin.code);
+        createdCodes.push(...admin.codes);
         await User.updateOne({ email: adminEmail }, { role: 'admin' });
 
         // A plain user, deliberately NOT on lifetime: the redeem tests below
         // stack a time-boxed key on top, which lifetime would refuse (409).
+        // `plan` makes the helper redeem a key AFTER sign-up, which is the only
+        // route to a plan now that sign-up itself is free.
         const user = await registerUser(app, { prefix: 'keys-user', plan: '30_day' });
         userEmail = user.email;
         userToken = user.token;
-        createdCodes.push(user.code);
+        createdCodes.push(...user.codes);
     });
 
     after(async () => {

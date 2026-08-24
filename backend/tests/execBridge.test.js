@@ -24,7 +24,7 @@ describe('exec bridge ownership wall', () => {
         await connectToDatabase();
         alice = await registerUser(app, { prefix: 'exec-alice' });
         bob = await registerUser(app, { prefix: 'exec-bob' });
-        for (const u of [alice, bob]) { emails.push(u.email); codes.push(u.code); }
+        for (const u of [alice, bob]) { emails.push(u.email); codes.push(...u.codes); }
 
         // Alice owns the account and has it running (a fresh presence lease).
         await request(app)
@@ -160,7 +160,7 @@ describe('exec bridge limits', () => {
     before(async () => {
         await connectToDatabase();
         alice = await registerUser(app, { prefix: 'execlim' });
-        emails.push(alice.email); codes.push(alice.code);
+        emails.push(alice.email); codes.push(...alice.codes);
         await request(app)
             .put(`/api/v1/accounts/${CHANNEL}`)
             .set('Authorization', `Bearer ${alice.token}`)

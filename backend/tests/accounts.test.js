@@ -23,7 +23,7 @@ describe('accounts API (cloud cookie store)', () => {
         await connectToDatabase();
         alice = await registerUser(app, { prefix: 'acct-alice' });
         bob = await registerUser(app, { prefix: 'acct-bob' });
-        for (const u of [alice, bob]) { emails.push(u.email); codes.push(u.code); }
+        for (const u of [alice, bob]) { emails.push(u.email); codes.push(...u.codes); }
     });
 
     after(async () => {

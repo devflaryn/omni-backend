@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
 import authorize from '../middlewares/auth.middleware.js';
-import requireActiveSubscription from '../middlewares/subscription.middleware.js';
 import {
     listAccounts,
     upsertAccount,
@@ -14,10 +13,16 @@ import {
 const accountsRouter = Router();
 
 // Path: /api/v1/accounts/...
-// Everything here is behind BOTH gates: a valid token (who you are) and an
-// active plan (whether the product is yours to use). Every handler additionally
-// scopes its query by req.user._id — the token alone never selects a row.
-accountsRouter.use(authorize, requireActiveSubscription);
+// One gate: a valid token. Every handler additionally scopes its query by
+// req.user._id — the token alone never selects a row.
+//
+// requireActiveSubscription USED to sit here too, and deliberately does not any
+// more. Sign-up is free, and a free account owns its Roblox accounts and their
+// cookies exactly as a premium one does — leaving the paywall on this router
+// would mean every new account was created locked out of its own data. The tier
+// is meant to gate FEATURES, and the middleware is still in the tree waiting
+// for the premium-only routes that will carry it.
+accountsRouter.use(authorize);
 
 accountsRouter.get('/', listAccounts);
 accountsRouter.post('/sync', syncAccounts);

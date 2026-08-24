@@ -1,12 +1,9 @@
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 import User from '../models/user.model.js';
-import LicenseKey from '../models/licenseKey.model.js';
 import { JWT_SECRET, JWT_EXPIRES_IN } from "../config/env.js";
 import {
-    computeSubscriptionAfterRedeem,
     isSubscriptionActive,
     daysRemaining,
     PLAN_LABELS,
@@ -18,14 +15,23 @@ function signToken(userId) {
     return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-/** The subscription view every client renders its paywall from. */
+/**
+ * The subscription view every client renders from.
+ *
+ * `tier` is the whole account model in one word: an account is FREE until a key
+ * is redeemed and PREMIUM while that plan holds, and it lapses back to free
+ * rather than to a locked-out state. It is derived from `active`, not stored,
+ * so an expiry can never leave the two disagreeing.
+ */
 export function subscriptionView(user, now = new Date()) {
     const sub = user?.subscription ?? { plan: null, expiresAt: null };
+    const active = isSubscriptionActive(sub, now);
     return {
         plan: sub.plan ?? null,
         planLabel: sub.plan ? (PLAN_LABELS[sub.plan] ?? sub.plan) : null,
         expiresAt: sub.expiresAt ?? null,
-        active: isSubscriptionActive(sub, now),
+        active,
+        tier: active ? 'premium' : 'free',
         daysRemaining: daysRemaining(sub, now),
     };
 }
@@ -36,63 +42,72 @@ function badRequest(message, statusCode = 400) {
     return error;
 }
 
+const USERNAME_PATTERN = /^[A-Za-z0-9_]+$/;
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 24;
+
 /**
- * Register. Unlike the original open sign-up, a valid, unredeemed license key is
- * now REQUIRED: the desktop app is the product, an account with no plan can do
- * nothing with it, and letting anyone create empty accounts on a public host is
- * just a spam surface. The key is consumed in the same transaction that creates
- * the user, so a crash can never leave a burned key with no account behind it.
+ * Register. Sign-up is FREE and takes no license key.
+ *
+ * It used to require one, on the reasoning that an account with no plan could
+ * do nothing with the app. That is no longer true: a free account is a real
+ * account that owns its Roblox accounts and cookies, and a key now BUYS TIME on
+ * an account that already exists (see keys.controller.js redeemKey) rather than
+ * being the thing that brings one into being. One consequence worth naming: the
+ * transaction is gone with the key claim, because creating a user is a single
+ * write and there is no second document to keep in step with it.
  */
 export const signUp = async (req, res, next) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
         const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
         const password = typeof req.body?.password === 'string' ? req.body.password : '';
-        const code = typeof req.body?.key === 'string' ? req.body.key.trim().toUpperCase() : '';
+        const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
 
         if (!email) throw badRequest('An email address is required');
+        if (!username) throw badRequest('A username is required');
+        if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) {
+            throw badRequest(`Username must be between ${USERNAME_MIN} and ${USERNAME_MAX} characters`);
+        }
+        if (!USERNAME_PATTERN.test(username)) {
+            throw badRequest('Username may only contain letters, numbers and underscores');
+        }
         if (password.length < MIN_PASSWORD) {
             throw badRequest(`Password must be at least ${MIN_PASSWORD} characters`);
         }
-        if (!code) throw badRequest('A license key is required to register');
 
-        const existingUser = await User.findOne({ email }).session(session);
-        if (existingUser) throw badRequest('User already exists', 409);
-
-        // Claim the key with a single conditional update: two simultaneous
-        // sign-ups on the same code cannot both match { status: 'unused' }, so
-        // the loser gets "already redeemed" instead of a second free account.
-        const key = await LicenseKey.findOneAndUpdate(
-            { code, status: 'unused' },
-            { status: 'redeemed', redeemedAt: new Date() },
-            { new: true, session }
-        );
-        if (!key) {
-            const known = await LicenseKey.findOne({ code }).session(session);
-            throw known
-                ? badRequest(`That key is already ${known.status}`, 409)
-                : badRequest('That license key is not valid', 404);
+        // Checked up front so the common case gets the message that names the
+        // right field. The unique indexes below are what actually PREVENT a
+        // duplicate — two simultaneous sign-ups both pass this check.
+        if (await User.findOne({ email })) throw badRequest('User already exists', 409);
+        if (await User.findOne({ usernameLower: username.toLowerCase() })) {
+            throw badRequest('That username is taken', 409);
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        const subscription = computeSubscriptionAfterRedeem(null, key.plan);
 
-        const newUsers = await User.create(
-            [{ email, password: hashedPassword, subscription }],
-            { session }
-        );
-        const user = newUsers[0];
-
-        key.redeemedBy = user._id;
-        await key.save({ session });
+        let user;
+        try {
+            user = await User.create({
+                email,
+                username,
+                password: hashedPassword,
+                subscription: { plan: null, expiresAt: null },
+            });
+        } catch (error) {
+            // The index caught what the lookup above raced past. Which field
+            // collided is in keyPattern, so the loser of the race still gets
+            // told which one to change instead of a bare "duplicate key".
+            if (error?.code === 11000) {
+                throw badRequest(
+                    error.keyPattern?.usernameLower ? 'That username is taken' : 'User already exists',
+                    409
+                );
+            }
+            throw error;
+        }
 
         const token = signToken(user._id);
-
-        await session.commitTransaction();
-        session.endSession();
 
         res.status(201).json({
             success: true,
@@ -104,8 +119,6 @@ export const signUp = async (req, res, next) => {
             }
         })
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
         next(error)
     }
 }

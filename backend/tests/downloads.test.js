@@ -17,14 +17,14 @@ import { registerUser } from './helpers/signup.js';
 // blocking loopback/local-network requests. If that ever changes, requests
 // here would need the browser-like headers documented in scripts/smoke-test.sh.
 describe('downloads API', () => {
-    let userToken, userEmail, userKey;
+    let userToken, userEmail, userKeys;
     const testRelativePath = 'qemu/windows/_test-artifact.txt';
     const testContent = 'not a real qemu build, just test bytes\n';
 
     before(async () => {
         await connectToDatabase();
 
-        ({ email: userEmail, token: userToken, code: userKey } =
+        ({ email: userEmail, token: userToken, codes: userKeys } =
             await registerUser(app, { prefix: 'downloads-user' }));
 
         const absolutePath = path.join(DOWNLOADS_ROOT, testRelativePath);
@@ -43,7 +43,7 @@ describe('downloads API', () => {
 
     after(async () => {
         await User.deleteOne({ email: userEmail });
-        await LicenseKey.deleteOne({ code: userKey });
+        await LicenseKey.deleteMany({ code: { $in: userKeys } });
         await Artifact.deleteMany({ version: { $in: ['0.0.0-test', '0.0.0-test-traversal'] } });
         fs.rmSync(path.join(DOWNLOADS_ROOT, testRelativePath), { force: true });
         await mongoose.connection.close();
