@@ -198,7 +198,7 @@ export default function omniExec(req, res, next) {
   if (p === '/neo_versions_required' || p.endsWith('/neo_versions_required')) {
     const lines = [];
     const lowApk = `${LOCAL_BASE}/SPDMTiahh/Updates/releases/download/1.0.0/Roblox.Arceus.X.NEO.1.0.0.apk`;
-    for (const rv of ['2.731.944', '2.732.1043', '2.726.1142']) lines.push(`${rv}|${lowApk}`);
+    for (const rv of ['2.731.944', '2.732.1043', '2.726.1142', '2.733.988', '2.734.917']) lines.push(`${rv}|${lowApk}`);
     for (let a = 0; a <= 9; a++) for (let b = 0; b <= 9; b++) {
       const v = `2.${a}.${b}`;
       lines.push(`${v}|${LOCAL_BASE}/SPDMTiahh/Updates/releases/download/${v}/Roblox.Arceus.X.NEO.${v}.apk`);
