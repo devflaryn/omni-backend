@@ -53,7 +53,12 @@ RECIPES = {
     "offset-arceus-x86": {
         "kind": "file",
         "subdir": "x86",
-        "member": "base_x86_data_offset_arceusremote.qcow2",
+        # The offset FILE is named after the bake it came from, while the
+        # ARTIFACT name is stable ("offset-arceus-x86") because that is what
+        # every installed client asks for. They move independently: this
+        # pointed at base_x86_data_offset_arceusremote.qcow2 (2.733.988) until
+        # the 2.734.917 bake replaced it.
+        "member": "base_x86_data_offset_omniexec-2.734.917.qcow2",
     },
     "base-arm": {
         "kind": "tar",

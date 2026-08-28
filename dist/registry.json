@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.27"
+    "version": "1.0.28"
   },
   "artifacts": [
     {
@@ -53,12 +53,12 @@
       "name": "offset-arceus-x86",
       "os": "win",
       "channel": "stable",
-      "version": "2.733.988",
+      "version": "2.734.917",
       "dest": "images/x86",
       "dest_name": "base_x86_data_offset_arceusremote.qcow2",
       "file": "offset-arceus-x86.qcow2",
-      "bytes": 828309504,
-      "sha256": "68ab794a2229256b2177ae14a0af87cc4969187afd0019133337c40bab02d1f1",
+      "bytes": 1056112640,
+      "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
       "notes": "Arceus X NEO 2.3.1 / Roblox 2.733.988, host-redirected to 72.62.59.232"
     },
     {
@@ -119,12 +119,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.27",
+      "version": "1.0.28",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.27.zip",
-      "bytes": 43940648,
-      "sha256": "238dd17c002f081dfb83834bda9e4aa2a178314e3fb05558141f2a3a0f8e68b8",
+      "file": "omni-exec-win-1.0.28.zip",
+      "bytes": 44758412,
+      "sha256": "ef01581fb91c26fd6f855733fc8dc92c56b2338ecd18b1e93991e34e47d2d2a9",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     }
