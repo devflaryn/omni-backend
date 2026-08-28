@@ -26,6 +26,14 @@ const licenseKeySchema = new mongoose.Schema({
         ref: 'User',
         default: null,
     },
+    // OVERRIDES the plan's default grant when set. This is what makes a gift
+    // key possible: a full 30-day plan that carries only  of solving credit.
+    // null means 'use the plan default'; an explicit 0 means 'grant nothing',
+    // and the two must not be conflated.
+    creditsMicros: {
+        type: Number,
+        default: null,
+    },
     note: {
         type: String,
         default: null,

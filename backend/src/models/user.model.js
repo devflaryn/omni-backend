@@ -50,6 +50,17 @@ const userSchema = new mongoose.Schema({
         enum: ['user', 'admin'],
         default: 'user',
     },
+    // Captcha-solving credits, in integer MICRO-dollars (see utils/credits.js).
+    // Denormalised for fast reads; CreditTransaction is the audit trail that
+    // gets trusted when a balance is disputed. May go slightly negative — the
+    // last affordable solve is allowed to overdraw, because the real cost is
+    // not known until the model answers. Every user-facing surface clamps to 0.
+    credits: {
+        balanceMicros: {
+            type: Number,
+            default: 0,
+        },
+    },
     subscription: {
         plan: {
             type: String,
