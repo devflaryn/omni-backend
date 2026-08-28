@@ -59,7 +59,7 @@
       "file": "offset-arceus-x86.qcow2",
       "bytes": 1056112640,
       "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
-      "notes": "Arceus X NEO 2.3.1 / Roblox 2.733.988, host-redirected to 72.62.59.232"
+      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 72.62.59.232"
     },
     {
       "name": "qemu-portable-win",
@@ -127,6 +127,30 @@
       "sha256": "ef01581fb91c26fd6f855733fc8dc92c56b2338ecd18b1e93991e34e47d2d2a9",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
+    },
+    {
+      "name": "base-x86-linux",
+      "os": "linux",
+      "channel": "stable",
+      "version": "bliss-16.9.7-kiosk-v6",
+      "dest": "images/x86",
+      "unpack": "tar",
+      "file": "base-x86.tar",
+      "bytes": 3028275200,
+      "sha256": "8d2004ce33b33df340266430de3e34c42fb7254191de966a9ccd2e8cd67ccf1a",
+      "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. BASE v6 (2026-08-18): the baked /system/app/OmniKiosk was rebuilt from source. The previous bake predated launcher/src/com/omni/kiosk/SessionProvider.java, so its manifest declared a class its dex did not contain -- the kiosk crash-looped, no session cookie was delivered and no deep-link fired, i.e. every fresh install black-screened with no auto-login and no auto-join. Kernel and initrd are byte-identical to v5; only the system disk changed. The arceusremote offset is a /data overlay and is unchanged -- it did not need rebaking."
+    },
+    {
+      "name": "offset-arceus-x86-linux",
+      "os": "linux",
+      "channel": "stable",
+      "version": "2.734.917",
+      "dest": "images/x86",
+      "dest_name": "base_x86_data_offset_arceusremote.qcow2",
+      "file": "offset-arceus-x86.qcow2",
+      "bytes": 1056112640,
+      "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
+      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 72.62.59.232. Same blob as the Windows row \u2014 one x86 image serves both hosts."
     }
   ]
 }
