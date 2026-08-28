@@ -75,6 +75,7 @@ RECIPES = {
     # here — just upload what is on disk.
     "app-win": {"kind": "prebuilt"},
     "app-mac": {"kind": "prebuilt"},
+    "app-linux": {"kind": "prebuilt"},
     # Same deal: scripts/build-qemu-portable.py assembles the zip into
     # dist/blobs and registers its size and sha256. It is not built from
     # images/, so there is nothing for this script to gather.

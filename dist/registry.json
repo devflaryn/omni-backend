@@ -151,6 +151,20 @@
       "bytes": 1056112640,
       "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
       "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 72.62.59.232. Same blob as the Windows row \u2014 one x86 image serves both hosts."
+    },
+    {
+      "name": "app-linux",
+      "os": "linux",
+      "channel": "stable",
+      "kind": "app",
+      "version": "1.0.28",
+      "dest": "app",
+      "unpack": "zip",
+      "file": "omni-exec-linux-1.0.28.zip",
+      "bytes": 123065851,
+      "sha256": "3c92963f759986689a41980d9d87c3e94a51d5411fafe0ac691acea75412daf0",
+      "root": "omni-exec",
+      "notes": "Desktop app build for Linux (x86_64 ELF, one-dir). kind=app keeps it out of the first-boot runtime download plan. QEMU and adb are NOT bundled: Linux policy is system tooling from apt. Built without python3-tk, so the built-in VNC viewer (tkinter + PIL) is excluded from this build; every other feature is present."
     }
   ]
 }
