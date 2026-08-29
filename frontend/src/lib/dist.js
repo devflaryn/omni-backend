@@ -9,8 +9,15 @@ const BLOB = (name) => `/omni/dist/blob/${name}`;
 export const PLATFORMS = [
     { id: "win",   name: "Windows",  os: "win",   ext: ".exe",      filename: "OmniExecutorSetup.exe",
       meta: "Windows 10 / 11 · 64-bit", note: "Per-user install. No administrator needed." },
+    // "Signed app bundle" was WRONG and it was the misleading kind of wrong:
+    // the bundle is AD-HOC signed with no Team ID, so Gatekeeper refuses the
+    // first launch outright ("cannot be opened because the developer cannot be
+    // verified"). Promising a signed build and then handing someone a scary
+    // system dialog reads as a broken download, which is exactly the Windows
+    // SmartScreen lesson the setup stub already learned. Say it up front.
     { id: "mac",   name: "macOS",    os: "mac",   ext: ".dmg",      filename: "OmniExecutor.dmg",
-      meta: "macOS 12+ · Apple silicon", note: "Signed app bundle." },
+      meta: "macOS 12+ · Apple silicon",
+      note: "Unsigned: first launch needs right-click → Open." },
     { id: "linux", name: "Linux",    os: "linux", ext: ".AppImage", filename: "OmniExecutor.AppImage",
       meta: "x86-64 · glibc 2.31+",       note: "Portable AppImage." },
 ];

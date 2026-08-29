@@ -80,6 +80,9 @@ RECIPES = {
     # here — just upload what is on disk.
     "app-win": {"kind": "prebuilt"},
     "app-mac": {"kind": "prebuilt"},
+    # Carries the build itself, so unlike setup-win it is republished
+    # per release. Staged from dist/blobs like the app zips.
+    "setup-mac": {"kind": "prebuilt"},
     "app-linux": {"kind": "prebuilt"},
     # Same deal: scripts/build-qemu-portable.py assembles the zip into
     # dist/blobs and registers its size and sha256. It is not built from

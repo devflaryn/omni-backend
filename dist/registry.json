@@ -16,6 +16,18 @@
       "notes": "The installer a new user downloads: http://72.62.59.232/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator. Version 2 (2026-08-22) replaces an existing install FILE BY FILE via bootstrap.replace_tree: version 1 could not replace a folder pinned by a live QEMU or window-lock and failed with WinError 183. REBUILD AND REPUBLISH THIS whenever installer.py or bootstrap.py changes -- the stub bundles both, and a fix left unbuilt is a fix that is not shipped."
     },
     {
+      "name": "setup-mac",
+      "os": "mac",
+      "channel": "tools",
+      "kind": "tool",
+      "version": "1",
+      "dest": "setup",
+      "file": "OmniExecutor.dmg",
+      "bytes": 36082473,
+      "sha256": "0cf20d8272ffb3ccc7a0258d99e6eaaed6dc2b8599a46609a305171af9887f7d",
+      "notes": "What a new Mac user downloads: http://72.62.59.232/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
+    },
+    {
       "name": "base-arm",
       "os": "mac",
       "channel": "stable",
