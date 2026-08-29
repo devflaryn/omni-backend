@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.30"
+    "version": "1.0.31"
   },
   "artifacts": [
     {
@@ -20,11 +20,11 @@
       "os": "mac",
       "channel": "tools",
       "kind": "tool",
-      "version": "1",
+      "version": "1.0.31",
       "dest": "setup",
       "file": "OmniExecutor.dmg",
-      "bytes": 36082473,
-      "sha256": "0cf20d8272ffb3ccc7a0258d99e6eaaed6dc2b8599a46609a305171af9887f7d",
+      "bytes": 36084764,
+      "sha256": "337b987a48c9e39d755b659df5e06afdcba3ad4ba2932c499c3d601e95db2305",
       "notes": "What a new Mac user downloads: http://72.62.59.232/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
     },
     {
@@ -146,12 +146,12 @@
       "os": "mac",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.30",
+      "version": "1.0.31",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-mac-1.0.30.zip",
-      "bytes": 31858033,
-      "sha256": "c1dc6dc293f0402edbfc35fe478957a1c853b812bfc47163448c6f49536017e0",
+      "file": "omni-exec-mac-1.0.31.zip",
+      "bytes": 31860551,
+      "sha256": "e05318c2c20ed9c958fc40b55cfb5b65fa73d1809fb1a826320ae817ec8291c1",
       "root": "Omni Executor.app",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches. Zipped with `ditto -c -k --sequesterRsrc --keepParent` rather than push-app.mjs's `zip -qr`: the bundle holds 85 symlinks and zip would dereference every one, bloating the archive and breaking the ad-hoc signature."
     },
