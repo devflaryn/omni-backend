@@ -39,10 +39,16 @@
  * filled by the owner.
  */
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { Router } from 'express';
+import { fileURLToPath } from 'url';
 
 import authorize from '../middlewares/auth.middleware.js';
 import RobloxAccount from '../models/robloxAccount.model.js';
+import { recordReport } from '../controllers/stats.controller.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 const router = Router();
@@ -315,6 +321,91 @@ router.get('/autoexec', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.json({ ok: true, channel, scripts });
 });
+
+// ---- STAT TRACK ------------------------------------------------------------
+//
+// A premium feature with two endpoints on this router:
+//
+//   GET  /omni/exec/stattrack.lua   the tracker itself, served as Luau text.
+//   */   /omni/exec/stats           one report from a live session.
+//
+// WHY THE SCRIPT IS SERVED AND NOT SHIPPED. The autoexec file the desktop app
+// drops on the host is three lines that loadstring THIS url. That indirection
+// is the whole point: the collector can be fixed for a fleet that is already
+// running, and a fleet of 25 guests does not have 25 copies of a script that
+// disagree with the server they report to. It also keeps the autoexec file
+// small enough to read at a glance, which matters because the user owns that
+// folder and can delete the file to turn the feature off.
+//
+// Served publicly, like /gist and /autoexec: it is a collector, it carries no
+// secret, and a stranger who fetches it gets a script that can only report
+// into an account they would also have to own. The PLAN is checked on the
+// report, not on the download — see stats.controller.js.
+const STATTRACK_FILE = path.join(__dirname, 'payloads', 'stattrack.lua');
+const STATTRACK_BASE = process.env.OMNI_PUBLIC_BASE || 'http://72.62.59.232';
+
+router.get('/stattrack.lua', (req, res) => {
+    let body;
+    try {
+        body = fs.readFileSync(STATTRACK_FILE, 'utf8');
+    } catch {
+        // A missing payload must not be a 200 with an empty chunk: loadstring
+        // of "" succeeds and does nothing, so the tracker would look installed
+        // and silently never report.
+        return res.status(404).type('text/plain').send('-- stattrack.lua is not deployed on this server\n');
+    }
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'no-store');
+    res.type('text/plain; charset=utf-8');
+    res.send(body.split('__OMNI_BASE__').join(STATTRACK_BASE));
+});
+
+/*
+ * Ingest, in both HTTP shapes for the same reason /claim and /report have two:
+ * inside Roblox the only call guaranteed to exist is game:HttpGet. A POST needs
+ * an executor-provided request(); this one does not always have it, and a
+ * tracker that reports only where POST exists is a tracker that silently does
+ * nothing on most instances.
+ *
+ * The GET form carries the report as a JSON string in `payload`, capped hard
+ * because it rides in a query string.
+ *
+ * Identity comes from the session token, never from the body: the token fixes
+ * the channel, the channel names the account, and the account names the owner.
+ * A caller who guesses a username can still claim a token and post junk stats
+ * into that account's dashboard — the same weakest link /claim already
+ * documents. It buys nothing else: the queue is unreadable, the plan is
+ * checked against the owner, and the only cost is a wrong number on a screen
+ * that the next real report overwrites.
+ */
+const MAX_GET_PAYLOAD = 6000;
+
+async function ingest(req, res, next) {
+    try {
+        const s = sessionFor(req);
+        if (!s) return res.status(403).json({ ok: false, error: 'no_session' });
+
+        let payload = req.body;
+        if (typeof req.query?.payload === 'string') {
+            const raw = req.query.payload.slice(0, MAX_GET_PAYLOAD);
+            try {
+                payload = JSON.parse(raw);
+            } catch {
+                return res.status(400).json({ ok: false, error: 'bad_payload' });
+            }
+        }
+        if (!payload || typeof payload !== 'object') {
+            return res.status(400).json({ ok: false, error: 'payload required' });
+        }
+
+        const result = await recordReport(s.channel, payload);
+        res.set('Access-Control-Allow-Origin', '*');
+        res.status(result.status).json(result.body);
+    } catch (error) { next(error); }
+}
+
+router.get('/stats', ingest);
+router.post('/stats', ingest);
 
 // housekeeping: drop jobs/results/sessions past their TTL so memory can't grow
 // unbounded

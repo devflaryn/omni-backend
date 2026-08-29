@@ -152,6 +152,12 @@ function guessType(p) {
 // vs. next() (not ours -> let the site / frontend catch-all handle it).
 function isOmniPath(p) {
   if (p.startsWith('/api/v1/')) return false;         // NEVER touch the real API
+  // /omni/* belongs to the exec bridge and the dist API, both mounted AFTER
+  // this middleware. Without this line the `.lua` rule below swallowed
+  // /omni/exec/stattrack.lua — this middleware would claim it as an executor
+  // path, find nothing in by-path/, and 404 it before the router that actually
+  // serves it ever ran. Any future .lua the bridge serves has the same trap.
+  if (p.startsWith('/omni/')) return false;
   if (p.startsWith('/api/')) return true;             // spdm licensing stubs
   if (p === '/gist' || p.endsWith('/gist')) return true;
   if (p.endsWith('.lua')) return true;

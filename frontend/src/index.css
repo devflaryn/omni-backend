@@ -276,9 +276,150 @@ a { color: inherit; text-decoration: none; }
     padding: 4px 9px; border-radius: 6px; white-space: nowrap;
 }
 
+/* --------------------------------------------------------------- auth pages
+   One centred card on the void, with the fleet grid deliberately ABSENT: the
+   hero uses that motif to sell the product, and a form is not a place to be
+   sold to. Same tokens, same type ramp, no new palette. */
+.nav__link--btn {
+    font-family: inherit; background: none; border: 0; cursor: pointer;
+    line-height: inherit;
+}
+
+.auth { min-height: calc(100vh - var(--nav-h)); display: grid; place-items: center; padding: 48px 24px 96px; }
+.auth__card {
+    width: 100%; max-width: 420px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 34px 30px 30px;
+    display: flex; flex-direction: column;
+}
+.auth__card h1 {
+    font-family: var(--display); font-weight: 700; font-size: 30px;
+    letter-spacing: -0.02em; margin: 16px 0 0;
+}
+.auth__sub { color: var(--dim); font-size: 14.5px; margin: 10px 0 0; }
+
+.field { display: flex; flex-direction: column; gap: 7px; margin-top: 20px; }
+.field > span { font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.field input {
+    font-family: var(--body); font-size: 15px; color: var(--text);
+    background: var(--void); border: 1px solid var(--line-2);
+    border-radius: 9px; padding: 11px 13px; width: 100%;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input:focus {
+    outline: none; border-color: var(--magenta);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--magenta) 18%, transparent);
+}
+.field small { color: var(--dim-2); font-size: 12px; }
+
+.auth__submit { margin-top: 26px; width: 100%; justify-content: center; }
+.auth__error {
+    margin: 18px 0 0; font-size: 13.5px; color: #ff6b8a;
+    border: 1px solid color-mix(in srgb, #ff6b8a 35%, var(--line));
+    background: color-mix(in srgb, #ff6b8a 8%, transparent);
+    border-radius: 9px; padding: 10px 13px;
+}
+.auth__alt { margin: 20px 0 0; text-align: center; font-size: 13.5px; color: var(--dim); }
+.auth__alt a { color: var(--magenta); }
+.auth__alt a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- dashboard */
+.dash { padding: 44px 0 96px; }
+.dash__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.dash__head h1 {
+    font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.6vw, 42px);
+    letter-spacing: -0.02em; margin: 14px 0 0;
+}
+.dash__head p { color: var(--dim); margin: 10px 0 0; }
+.dash__error {
+    margin: 22px 0 0; font-size: 13.5px; color: #ff6b8a;
+    border: 1px solid color-mix(in srgb, #ff6b8a 35%, var(--line));
+    background: color-mix(in srgb, #ff6b8a 8%, transparent);
+    border-radius: 9px; padding: 10px 13px;
+}
+
+.plan {
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+    border: 1px solid var(--line-2); background: var(--panel);
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+}
+.plan.is-premium {
+    color: #ffd76a; border-color: color-mix(in srgb, #ffd76a 40%, var(--line));
+    background: color-mix(in srgb, #ffd76a 8%, transparent);
+}
+
+.stat-row { margin-top: 34px; display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); }
+.tile {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
+}
+.tile.is-muted { opacity: .55; }
+.tile__label { font-family: var(--mono); font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.tile__value { font-family: var(--mono); font-size: 30px; line-height: 1; font-weight: 600; }
+.tile__value.is-live { color: var(--live); }
+
+/* The premium panel. Not a paywall over the page — the page below it still
+   works — so it reads as an offer rather than a blocker. */
+.premium {
+    margin-top: 26px; display: flex; align-items: center; gap: 26px; flex-wrap: wrap;
+    border: 1px solid color-mix(in srgb, var(--violet) 35%, var(--line));
+    background: linear-gradient(120deg, color-mix(in srgb, var(--violet) 10%, var(--panel)), var(--panel));
+    border-radius: 16px; padding: 26px 28px;
+}
+.premium__body { flex: 1; min-width: 280px; }
+.premium h2 { font-family: var(--display); font-weight: 600; font-size: 24px; margin: 12px 0 0; }
+.premium p { color: var(--dim); margin: 10px 0 0; max-width: 62ch; }
+.premium ul { margin: 16px 0 0; padding-left: 18px; color: var(--dim); font-size: 14px; }
+.premium li { margin: 5px 0; }
+.premium .badge {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--violet); border: 1px solid color-mix(in srgb, var(--violet) 45%, var(--line));
+    padding: 4px 9px; border-radius: 6px;
+}
+
+.dash__list { margin-top: 38px; }
+.dash__list-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line);
+}
+.dash__list-head h2 { font-family: var(--display); font-weight: 600; font-size: 20px; margin: 0; }
+.dash__list-head span { font-family: var(--mono); font-size: 12px; color: var(--dim-2); }
+.dash__empty { color: var(--dim); padding: 28px 2px; }
+
+.acct-list { list-style: none; margin: 0; padding: 0; }
+.acct {
+    display: flex; align-items: center; gap: 16px;
+    padding: 15px 4px; border-bottom: 1px solid var(--line);
+}
+.acct__dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--dim-2); }
+/* Three states, because "a VM is up" and "the script is talking" are different
+   facts: live = reporting, warm = running but silent, off = stopped. */
+.acct__dot.is-live { background: var(--live); box-shadow: 0 0 10px var(--live); }
+.acct__dot.is-warm { background: var(--violet); box-shadow: 0 0 10px -2px var(--violet); }
+.acct__id { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.acct__id b { font-size: 14.5px; font-weight: 500; }
+.acct__id small { color: var(--dim-2); font-size: 12.5px; }
+
+.acct__metrics { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.metric { display: flex; flex-direction: column; gap: 3px; text-align: right; }
+.metric small { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim-2); }
+.metric b { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+.metric--none { font-family: var(--mono); font-size: 12px; color: var(--dim-2); }
+
+.acct__state {
+    width: 130px; flex: none; text-align: right;
+    display: flex; flex-direction: column; gap: 3px;
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+}
+.acct__state small { font-size: 11px; color: var(--dim-2); }
+
 /* --------------------------------------------------------------- responsive */
 @media (max-width: 860px) {
     .flow__grid, .os-grid { grid-template-columns: 1fr; }
+    .stat-row { grid-template-columns: 1fr; }
+    .acct { flex-wrap: wrap; }
+    .acct__metrics { justify-content: flex-start; width: 100%; }
+    .acct__state { width: auto; text-align: left; }
     .hero__wrap { padding: 68px 24px 76px; }
     .nav__links .nav__link:not(.is-key) { display: none; }
 }

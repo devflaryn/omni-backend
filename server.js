@@ -16,6 +16,7 @@ import keysRouter from "./backend/src/routes/keys.routes.js";
 import accountsRouter from "./backend/src/routes/accounts.routes.js";
 import downloadsRouter from "./backend/src/routes/downloads.routes.js";
 import creditsRouter from "./backend/src/routes/credits.routes.js";
+import statsRouter from "./backend/src/routes/stats.routes.js";
 import connectToDatabase from "./backend/src/database/mongodb.js";
 import errorMiddleware from "./backend/src/middlewares/error.middleware.js";
 import arcjetMiddleware from "./backend/src/middlewares/arcjet.middleware.js";
@@ -51,6 +52,7 @@ app.use('/api/v1/keys', keysRouter);
 app.use('/api/v1/accounts', accountsRouter);
 app.use('/api/v1/downloads', downloadsRouter);
 app.use('/api/v1/credits', creditsRouter);
+app.use('/api/v1/stats', statsRouter);
 
 // TODO: add a production logic
 const reactBuildPath = path.join(__dirname, 'frontend', 'dist');
