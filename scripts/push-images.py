@@ -68,7 +68,12 @@ RECIPES = {
     "offset-arceus-arm": {
         "kind": "file",
         "subdir": "arm",
-        "member": "base_arm_data_offset_arceusremote.qcow2",
+        # Same split as the x86 entry above: the FILE is named after the bake,
+        # the ARTIFACT name is stable because that is what clients ask for.
+        # This pointed at base_arm_data_offset_arceusremote.qcow2 (2.732.1043)
+        # until the 2.734.917 bake replaced it. The old bake is still on the
+        # Mac as a sibling offset, so a rollback is a one-line change here.
+        "member": "base_arm_data_offset_arceusremote2734.qcow2",
     },
     # App builds are produced by scripts/push-app.mjs, which already writes the
     # zip into dist/blobs and records its size and sha256. Nothing to assemble
