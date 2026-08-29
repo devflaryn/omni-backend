@@ -1,4 +1,4 @@
-import aj from "../config/arcjet.js"
+import aj, { BOT_MODE } from "../config/arcjet.js"
 
 // The desktop Omni Executor client is not a browser and not a search-engine
 // crawler, so Arcjet's detectBot({mode:"LIVE"}) rejected it outright ("Bot
@@ -18,6 +18,16 @@ const arcjetMiddleware = async (req, res, next) => {
         // A denied Omni client is only ever a false-positive bot verdict here;
         // honour a genuine rate-limit but never the bot rule for our own client.
         if (decision.isDenied() && decision.reason.isBot() && isOmniClient(req)) {
+            return next();
+        }
+
+        // Belt and braces for the DRY_RUN switch in config/arcjet.js. A rule in
+        // DRY_RUN should never reach a DENY conclusion on its own, but the
+        // enforcement point is the thing that actually 403s a person, so it
+        // refuses to do so on a bot verdict the config says is not live. That
+        // makes the config the single place to look when asking "is bot
+        // detection on", instead of two places that can disagree.
+        if (decision.isDenied() && decision.reason.isBot() && BOT_MODE !== "LIVE") {
             return next();
         }
 
