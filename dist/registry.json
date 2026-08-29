@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.29"
+    "version": "1.0.30"
   },
   "artifacts": [
     {
@@ -134,12 +134,12 @@
       "os": "mac",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.29",
+      "version": "1.0.30",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-mac-1.0.29.zip",
-      "bytes": 31858975,
-      "sha256": "77f10afe8af834aecb7573ce46468d64cb4828b031ccb6fc33f362c719ce79ad",
+      "file": "omni-exec-mac-1.0.30.zip",
+      "bytes": 31858033,
+      "sha256": "c1dc6dc293f0402edbfc35fe478957a1c853b812bfc47163448c6f49536017e0",
       "root": "Omni Executor.app",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches. Zipped with `ditto -c -k --sequesterRsrc --keepParent` rather than push-app.mjs's `zip -qr`: the bundle holds 85 symlinks and zip would dereference every one, bloating the archive and breaking the ad-hoc signature."
     },
