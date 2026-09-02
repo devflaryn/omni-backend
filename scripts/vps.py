@@ -33,7 +33,7 @@ for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError):
         pass
-HOST = os.environ.get("OMNI_VPS_HOST", "72.62.59.232")
+HOST = os.environ.get("OMNI_VPS_HOST", "179.198.197.7")
 USER = os.environ.get("OMNI_VPS_USER", "root")
 
 

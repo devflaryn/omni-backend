@@ -18,6 +18,21 @@ pcall(function() getgenv().initLoaded = true end)
 pcall(function() getgenv().arceus = getgenv().arceus or {} end)
 pcall(function() getgenv().ax = getgenv().arceus end)
 
+-- OMNI IDENTITY. The executor's native identifyexecutor() reports the upstream
+-- brand ("Arceus X", "2.3.3") from its packed .text -- not statically
+-- patchable, and the strings are longer than the originals so an in-place
+-- native edit can't fit anyway. We instead override the identity in the shared
+-- global env here, on every session before any user/autoexec script runs, so
+-- `local n, v = identifyexecutor()` returns the Omni brand everywhere.
+-- getexecutorname/getexecutorversion are overridden too for parity.
+pcall(function()
+    local NAME, VER = "Omni Executor", "2.735.1138"
+    local g = getgenv()
+    g.identifyexecutor   = function() return NAME, VER end
+    g.getexecutorname    = function() return NAME end
+    g.getexecutorversion = function() return VER end
+end)
+
 local Players = game:GetService("Players")
 local UIS     = game:GetService("UserInputService")
 local TweenS  = game:GetService("TweenService")

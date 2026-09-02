@@ -342,7 +342,7 @@ router.get('/autoexec', (req, res) => {
 // into an account they would also have to own. The PLAN is checked on the
 // report, not on the download — see stats.controller.js.
 const STATTRACK_FILE = path.join(__dirname, 'payloads', 'stattrack.lua');
-const STATTRACK_BASE = process.env.OMNI_PUBLIC_BASE || 'http://72.62.59.232';
+const STATTRACK_BASE = process.env.OMNI_PUBLIC_BASE || 'http://179.198.197.7';
 
 router.get('/stattrack.lua', (req, res) => {
     let body;

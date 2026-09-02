@@ -6,7 +6,7 @@
 WHY THIS EXISTS. backend/src/omni-exec/payloads/ is served straight to the
 Arceus X NEO executor (see omniExec.middleware.js). The executor's whole load
 chain -- arceus.lua, /gist, every by-path script and image -- must resolve to
-OUR server (72.62.59.232) so nothing 404s and nothing calls out to github.com,
+OUR server (179.198.197.7) so nothing 404s and nothing calls out to github.com,
 spdmteam.com, discord, etc. at runtime. A literal external-host string sitting
 in a payload file is not automatically a bug though: the middleware rewrites
 some payload text at *serve time* (see rewriteLocal()/HOSTS in

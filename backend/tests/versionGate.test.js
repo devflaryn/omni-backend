@@ -17,7 +17,7 @@ test('neo_versions_required never asks 2.734.917 to update', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/neo_versions_required`);
     const body = await res.text();
     // Check that both added versions exist and map to the /1.0.0/ target
-    for (const version of ['2.733.988', '2.734.917']) {
+    for (const version of ['2.733.988', '2.734.917', '2.735.1138']) {
       const row = body.split('\n').find(l => l.startsWith(`${version}|`));
       assert.ok(row, `expected a ${version} row in the version map`);
       // A self-consistent/low required target means the client (already at this version)

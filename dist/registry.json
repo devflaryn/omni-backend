@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.37"
+    "version": "1.0.38"
   },
   "artifacts": [
     {
@@ -8,12 +8,12 @@
       "os": "win",
       "channel": "tools",
       "kind": "tool",
-      "version": "2",
+      "version": "3",
       "dest": "setup",
       "file": "OmniExecutorSetup.exe",
-      "bytes": 12974050,
-      "sha256": "2591b584a6d643d7fbb0d19a93999b56d26a447bf031aba7573b94e6cb7282b2",
-      "notes": "The installer a new user downloads: http://72.62.59.232/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator. Version 2 (2026-08-22) replaces an existing install FILE BY FILE via bootstrap.replace_tree: version 1 could not replace a folder pinned by a live QEMU or window-lock and failed with WinError 183. REBUILD AND REPUBLISH THIS whenever installer.py or bootstrap.py changes -- the stub bundles both, and a fix left unbuilt is a fix that is not shipped."
+      "bytes": 12975160,
+      "sha256": "419cb69af8a7a86fb63925c9583d9f28dea2fc3f81dcd71fcee3f1cb52e4bd56",
+      "notes": "The installer a new user downloads: http://179.198.197.7/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator. Version 3 (2026-09-02) points bootstrap at the new VPS 179.198.197.7. Version 2 (2026-08-22) replaces an existing install FILE BY FILE via bootstrap.replace_tree: version 1 could not replace a folder pinned by a live QEMU or window-lock and failed with WinError 183. REBUILD AND REPUBLISH THIS whenever installer.py or bootstrap.py changes -- the stub bundles both, and a fix left unbuilt is a fix that is not shipped."
     },
     {
       "name": "setup-mac",
@@ -25,7 +25,7 @@
       "file": "OmniExecutor.dmg",
       "bytes": 36084764,
       "sha256": "337b987a48c9e39d755b659df5e06afdcba3ad4ba2932c499c3d601e95db2305",
-      "notes": "What a new Mac user downloads: http://72.62.59.232/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
+      "notes": "What a new Mac user downloads: http://179.198.197.7/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
     },
     {
       "name": "base-arm",
@@ -48,18 +48,18 @@
       "file": "offset-arceus-arm.qcow2",
       "bytes": 459800576,
       "sha256": "5e6202cca2223a7c2eb4fd850a201990683299d9ab056f74c9cbe7dcbdf3fc6c",
-      "notes": "Arceus X NEO / Roblox 2.734.917 arm64, host-redirected to 72.62.59.232. Baked on the Mac from omniexec-2.734.917.apk; matches the x86 offset\u2019s Roblox build."
+      "notes": "Arceus X NEO / Roblox 2.734.917 arm64, host-redirected to 179.198.197.7. Baked on the Mac from omniexec-2.734.917.apk; matches the x86 offset\u2019s Roblox build."
     },
     {
       "name": "base-x86",
       "os": "win",
       "channel": "stable",
-      "version": "bliss-16.9.7-kiosk-v6",
+      "version": "bliss-16.9.7-kiosk-v7",
       "dest": "images/x86",
       "unpack": "tar",
       "file": "base-x86.tar",
       "bytes": 3028275200,
-      "sha256": "8d2004ce33b33df340266430de3e34c42fb7254191de966a9ccd2e8cd67ccf1a",
+      "sha256": "dc3e5f5abed5a11ee24456bac03a48f5f128253d043bf1903cb28ec9f27c0ee4",
       "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. BASE v6 (2026-08-18): the baked /system/app/OmniKiosk was rebuilt from source. The previous bake predated launcher/src/com/omni/kiosk/SessionProvider.java, so its manifest declared a class its dex did not contain -- the kiosk crash-looped, no session cookie was delivered and no deep-link fired, i.e. every fresh install black-screened with no auto-login and no auto-join. Kernel and initrd are byte-identical to v5; only the system disk changed. The arceusremote offset is a /data overlay and is unchanged -- it did not need rebaking."
     },
     {
@@ -72,7 +72,7 @@
       "file": "offset-arceus-x86.qcow2",
       "bytes": 1056112640,
       "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
-      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 72.62.59.232"
+      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 179.198.197.7"
     },
     {
       "name": "qemu-portable-win",
@@ -132,12 +132,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.37",
+      "version": "1.0.38",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.37.zip",
-      "bytes": 43473679,
-      "sha256": "28327d9db5c7af3f06232a946ce86733c45df23974dd224e4d5bb885db4b775e",
+      "file": "omni-exec-win-1.0.38.zip",
+      "bytes": 43480626,
+      "sha256": "eefcb9c4384b1bdb2837c1fd25496fb77b2f11d170c753f2bf398eea41b8010d",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     },
@@ -159,12 +159,12 @@
       "name": "base-x86-linux",
       "os": "linux",
       "channel": "stable",
-      "version": "bliss-16.9.7-kiosk-v6",
+      "version": "bliss-16.9.7-kiosk-v7",
       "dest": "images/x86",
       "unpack": "tar",
       "file": "base-x86.tar",
       "bytes": 3028275200,
-      "sha256": "8d2004ce33b33df340266430de3e34c42fb7254191de966a9ccd2e8cd67ccf1a",
+      "sha256": "dc3e5f5abed5a11ee24456bac03a48f5f128253d043bf1903cb28ec9f27c0ee4",
       "notes": "x86 Bliss OS base set (base_x86.qcow2/.kernel/.initrd.img + data-template + devkit). Carries libndk_translation so the arm-only arceus APK runs. BASE v6 (2026-08-18): the baked /system/app/OmniKiosk was rebuilt from source. The previous bake predated launcher/src/com/omni/kiosk/SessionProvider.java, so its manifest declared a class its dex did not contain -- the kiosk crash-looped, no session cookie was delivered and no deep-link fired, i.e. every fresh install black-screened with no auto-login and no auto-join. Kernel and initrd are byte-identical to v5; only the system disk changed. The arceusremote offset is a /data overlay and is unchanged -- it did not need rebaking."
     },
     {
@@ -177,7 +177,7 @@
       "file": "offset-arceus-x86.qcow2",
       "bytes": 1056112640,
       "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
-      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 72.62.59.232. Same blob as the Windows row \u2014 one x86 image serves both hosts."
+      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 179.198.197.7. Same blob as the Windows row \u2014 one x86 image serves both hosts."
     },
     {
       "name": "app-linux",
