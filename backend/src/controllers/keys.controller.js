@@ -100,7 +100,31 @@ export const redeemKey = async (req, res, next) => {
         }
 
         const user = await User.findById(req.user._id).session(session);
+
+        // Snapshot BEFORE applying so a later revocation can reverse exactly what
+        // this redemption granted, and no more (see services/revokeKey.js).
+        const subscriptionBefore = {
+            plan: user.subscription?.plan ?? null,
+            expiresAt: user.subscription?.expiresAt ?? null,
+        };
+
         user.subscription = computeSubscriptionAfterRedeem(user.subscription, key.plan);
+
+        // The exact milliseconds this key added. Mirrors the stacking rule in
+        // computeSubscriptionAfterRedeem: time is added onto whatever is left, or
+        // onto now if the plan already lapsed. Recorded rather than recomputed at
+        // revoke time, because by then the user may have stacked further keys and
+        // the plan's nominal duration would no longer describe THIS grant.
+        // null for lifetime, which has no duration to take back.
+        const nowMs = Date.now();
+        const beforeMs = subscriptionBefore.expiresAt
+            ? new Date(subscriptionBefore.expiresAt).getTime()
+            : null;
+        const afterMs = user.subscription?.expiresAt
+            ? new Date(user.subscription.expiresAt).getTime()
+            : null;
+        const baseMs = (beforeMs !== null && beforeMs > nowMs) ? beforeMs : nowMs;
+        const grantedMs = afterMs !== null ? afterMs - baseMs : null;
 
         // Credits ride along inside the SAME transaction as the subscription.
         // Granting them afterwards would mean a crash in between hands out a
@@ -126,6 +150,9 @@ export const redeemKey = async (req, res, next) => {
         key.status = 'redeemed';
         key.redeemedBy = req.user._id;
         key.redeemedAt = new Date();
+        key.subscriptionBefore = subscriptionBefore;
+        key.grantedMs = grantedMs;
+        key.creditsGrantedMicros = granted;
         await key.save({ session });
 
         await session.commitTransaction();

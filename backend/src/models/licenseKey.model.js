@@ -47,6 +47,42 @@ const licenseKeySchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+
+    // ---- guest checkout ----
+    // The order this key was sold on. Null for admin- and script-minted keys.
+    order: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order',
+        default: null,
+    },
+    // Who we emailed it to. The buyer has no account, so this address is the
+    // only link between a key and the person who paid for it.
+    issuedToEmail: {
+        type: String,
+        default: null,
+    },
+
+    // ---- reversal bookkeeping, written at redeem time ----
+    // Snapshot of the subscription BEFORE this key was applied. Only used to
+    // restore a `lifetime` revocation, which has no duration to subtract.
+    subscriptionBefore: {
+        plan: { type: String, default: null },
+        expiresAt: { type: Date, default: null },
+    },
+    // The EXACT milliseconds this key added to expiresAt. Recorded rather than
+    // recomputed so revocation subtracts precisely what was granted, even when
+    // other keys were stacked afterwards.
+    grantedMs: {
+        type: Number,
+        default: null,
+    },
+    creditsGrantedMicros: {
+        type: Number,
+        default: null,
+    },
+
+    revokedAt: { type: Date, default: null },
+    revokedReason: { type: String, default: null },
 }, { timestamps: true });
 
 const LicenseKey = mongoose.model('LicenseKey', licenseKeySchema);

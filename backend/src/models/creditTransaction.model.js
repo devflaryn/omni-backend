@@ -22,7 +22,7 @@ const creditTransactionSchema = new mongoose.Schema({
     },
     kind: {
         type: String,
-        enum: ['grant', 'spend', 'admin', 'refund'],
+        enum: ['grant', 'spend', 'admin', 'refund', 'revocation'],
         required: true,
     },
     // Free text for a human reading the ledger later. Admin adjustments require

@@ -24,8 +24,18 @@ import omniExec from "./backend/src/omni-exec/omniExec.middleware.js";
 import execBridge from "./backend/src/omni-exec/execBridge.js";
 import { loadRegistry } from "./backend/src/omni-exec/registry.js";
 import { createDistRouter } from "./backend/src/omni-exec/distApi.js";
+import checkoutRouter from "./backend/src/routes/checkout.routes.js";
+import { webhook as checkoutWebhook } from "./backend/src/controllers/checkout.controller.js";
 
 const app = express();
+
+/*
+ * BTCPay signs the RAW bytes of its webhook body. express.json() would parse
+ * and discard them, and re-serialising the parsed object changes whitespace, so
+ * the HMAC could never match. This ONE route therefore takes the raw buffer and
+ * must be mounted before the JSON parser - order is load-bearing.
+ */
+app.post("/api/v1/checkout/webhook", express.raw({ type: "*/*" }), checkoutWebhook);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -49,6 +59,7 @@ app.use('/api', arcjetMiddleware);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/keys', keysRouter);
+app.use('/api/v1/checkout', checkoutRouter);
 app.use('/api/v1/accounts', accountsRouter);
 app.use('/api/v1/downloads', downloadsRouter);
 app.use('/api/v1/credits', creditsRouter);

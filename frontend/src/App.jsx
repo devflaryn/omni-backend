@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "r
 
 import Home from "./pages/Home";
 import Download from "./pages/Download";
+import CheckoutStatus from "./pages/CheckoutStatus";
 import Admin from "./pages/Admin";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -35,6 +36,7 @@ export default function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/download" element={<Download />} />
+                    <Route path="/checkout/:orderId" element={<CheckoutStatus />} />
                     <Route path="/sign-in" element={<SignIn />} />
                     <Route path="/sign-up" element={<SignUp />} />
                     <Route
