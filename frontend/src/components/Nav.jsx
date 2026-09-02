@@ -7,10 +7,12 @@ export default function Nav() {
 
     return (
         <header className="nav">
-            <div className="nav__inner">
+            <div className="nav__bar">
                 <Link to="/" className="wordmark" aria-label="Omni Executor home">
-                    <b>OMNI</b><span className="dot">·</span>EXEC
+                    <span className="wordmark__mark" aria-hidden="true" />
+                    <b>Omni</b><span>Executor</span>
                 </Link>
+
                 <nav className="nav__links" aria-label="Main menu">
                     <NavLink to="/" end className={({ isActive }) => "nav__link" + (isActive ? " is-active" : "")}>
                         Overview
@@ -23,10 +25,14 @@ export default function Nav() {
                             Dashboard
                         </NavLink>
                     )}
-                    {/* Nothing auth-shaped renders until the first /me has
-                        answered. Otherwise every reload of a signed-in session
-                        flashes "Sign in" for a beat, which reads as having been
-                        logged out. */}
+                    <a href="/#pricing" className="nav__link">Pricing</a>
+                    <a href="/#flow" className="nav__link">How it works</a>
+                </nav>
+
+                {/* Nothing auth-shaped renders until the first /me has answered.
+                    Otherwise every reload of a signed-in session flashes "Sign
+                    in" for a beat, which reads as having been logged out. */}
+                <div className="nav__actions">
                     {auth.ready && (auth.signedIn ? (
                         <button type="button" className="nav__link nav__link--btn" onClick={auth.signOut}>
                             Sign out
@@ -39,8 +45,8 @@ export default function Nav() {
                             Sign in
                         </NavLink>
                     ))}
-                    <Link to="/download" className="nav__cta is-key">Download</Link>
-                </nav>
+                    <Link to="/download" className="nav__cta">Download</Link>
+                </div>
             </div>
         </header>
     );

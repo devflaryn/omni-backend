@@ -2,7 +2,7 @@
  * OMNI-EXEC integration middleware.
  *
  * Serves the Arceus X NEO executor's redirected load chain (github + spdmteam.com
- * traffic that the patched APK now sends to http://72.62.59.232) from THIS backend,
+ * traffic that the patched APK now sends to https://omniexec.net) from THIS backend,
  * on the same port 80 the site already listens on. It is a pass-through: it only
  * answers the executor's own request shapes (*.lua, /gist, /SPDM-Team/..., the spdm
  * /api/* stubs, the version gate, the update path) and calls next() for everything
@@ -22,9 +22,10 @@ const BYPATH     = path.join(PAYL, 'by-path');
 const UIDIR      = path.join(PAYL, 'ui');
 
 // The public base the executor was baked to call. The patched .so rewrites every
-// upstream host to `http://72.62.59.232` (port 80, no explicit port — forced by the
-// in-place same-length URL rewrite). Override with OMNI_PUBLIC_BASE if the host changes.
-const LOCAL_BASE = process.env.OMNI_PUBLIC_BASE || 'http://72.62.59.232';
+// upstream host to `https://omniexec.net` (in-place same-length URL rewrite:
+// `https://spdmteam.com/darkrai` -> `https://omniexec.net/darkrai`, both 28 bytes).
+// Override with OMNI_PUBLIC_BASE if the host changes.
+const LOCAL_BASE = process.env.OMNI_PUBLIC_BASE || 'https://omniexec.net';
 const XOR_KEY    = Buffer.from('BWC');           // arceus.lua obfuscation key
 
 // Hosts that appear literally inside downloaded Lua/JSON content -> rewrite to us.

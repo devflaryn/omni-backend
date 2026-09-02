@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import Nav from "../components/Nav";
 import { useAuth } from "../lib/auth-context.js";
+import { displayName } from "../lib/display.js";
 
 /*
  * The dashboard: your accounts, where they are running, and what they are
@@ -80,7 +81,7 @@ export default function Dashboard() {
                     <div>
                         <span className="eyebrow">Dashboard</span>
                         <h1>
-                            {auth.user?.username ? `Hey, ${auth.user.username}.` : "Your fleet."}
+                            {auth.user?.username ? `Hey, ${displayName(auth.user.username)}.` : "Your fleet."}
                         </h1>
                         <p>
                             {accounts === null

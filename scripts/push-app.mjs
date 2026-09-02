@@ -80,11 +80,19 @@ try {
 // omni-exec.exe still running out of the same directory, which is easy to do —
 // still produces a launchable-looking tree. One was published at 31 MB with
 // ZERO frontend files in it: an app that would start and then show nothing.
-// The exe alone proves nothing; the frontend and the bundled engine are what
-// make it the product.
+// The exe alone proves nothing; the bundled engine is what makes it the
+// product.
+//
+// The Tauri shell EMBEDS the frontend inside omni-exec.exe (build-windows.ps1
+// verifies the hashed asset name is actually in the binary), so there is no
+// _internal/frontend/dist/index.html to look for any more — checking for it
+// would refuse every valid Tauri build. What must be present instead is the
+// frozen backend beside the shell: omni-exec-py.exe and its _internal one-dir.
+const isWin = process.platform === 'win32';
 const REQUIRED = [
-    process.platform === 'win32' ? 'omni-exec.exe' : 'omni-exec',
-    path.join('_internal', 'frontend', 'dist', 'index.html'),
+    isWin ? 'omni-exec.exe' : 'omni-exec',
+    isWin ? 'omni-exec-py.exe' : 'omni-exec-py',
+    path.join('_internal', 'base_library.zip'),
 ];
 for (const rel of REQUIRED) {
     if (!fs.existsSync(path.join(buildDir, rel))) {

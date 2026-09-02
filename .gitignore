@@ -81,3 +81,9 @@ desktop.ini
 
 # distribution blobs (multi-GB, uploaded out-of-band; dist/registry.json IS committed)
 /dist/blobs/
+
+# TLS key material for the executor load chain (443). Generated on the
+# server, never committed: it is key material, and it is per-host.
+certs/
+*.key
+*.crt

@@ -44,6 +44,7 @@ export default function Download() {
             <Nav />
             <main className="shell dl">
                 <div className="dl__head">
+                    <span className="eyebrow">Get the app</span>
                     <h1>Download Omni Executor.</h1>
                     <p>One installer per platform. Every build checks for updates on launch and
                        keeps itself current — install once, stay on the latest.</p>
