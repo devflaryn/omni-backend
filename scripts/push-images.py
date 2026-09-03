@@ -57,8 +57,9 @@ RECIPES = {
         # ARTIFACT name is stable ("offset-arceus-x86") because that is what
         # every installed client asks for. They move independently: this
         # pointed at base_x86_data_offset_arceusremote.qcow2 (2.733.988) until
-        # the 2.734.917 bake replaced it.
-        "member": "base_x86_data_offset_omniexec-2.734.917.qcow2",
+        # the 2.734.917 bake replaced it, and at 2.734.917 until the
+        # 2.735.1138-lock2 bake replaced that (2026-09-03).
+        "member": "base_x86_data_offset_omniexec-2.735.1138-lock2.qcow2",
     },
     "base-arm": {
         "kind": "tar",
@@ -71,9 +72,11 @@ RECIPES = {
         # Same split as the x86 entry above: the FILE is named after the bake,
         # the ARTIFACT name is stable because that is what clients ask for.
         # This pointed at base_arm_data_offset_arceusremote.qcow2 (2.732.1043)
-        # until the 2.734.917 bake replaced it. The old bake is still on the
-        # Mac as a sibling offset, so a rollback is a one-line change here.
-        "member": "base_arm_data_offset_arceusremote2734.qcow2",
+        # until the 2.734.917 bake replaced it, and at that until the
+        # 2.735.1138-lock2 bake replaced it (2026-09-03). The old bakes are
+        # still on the Mac as sibling offsets, so a rollback is a one-line
+        # change here.
+        "member": "base_arm_data_offset_omniexec-2.735.1138-lock2.qcow2",
     },
     # App builds are produced by scripts/push-app.mjs, which already writes the
     # zip into dist/blobs and records its size and sha256. Nothing to assemble
