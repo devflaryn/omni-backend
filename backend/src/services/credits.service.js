@@ -37,6 +37,9 @@ export async function grantCredits(userId, amountMicros, {
     bucket = 'permanent', kind = 'grant', reason = null, actor = null,
     meta = null, expiresAt = null,
 } = {}) {
+    if (bucket !== 'permanent' && bucket !== 'subscription') {
+        throw new CreditsError(`Invalid bucket: ${bucket}`);
+    }
     const amount = Math.round(Number(amountMicros) || 0);
     if (amount === 0) {
         const u = await User.findById(userId).select('credits');
@@ -70,8 +73,6 @@ export async function spendCredits(userId, amountMicros, { kind = 'spend', reaso
         return { chargedMicros: 0, balanceMicros: effectiveBalanceMicros(u?.credits) };
     }
     const now = new Date();
-    const before = await User.findById(userId).select('credits');
-    if (!before) throw new CreditsError('User not found', 404);
 
     const updated = await User.findOneAndUpdate(
         { _id: userId },
@@ -94,19 +95,32 @@ export async function spendCredits(userId, amountMicros, { kind = 'spend', reaso
                     $subtract: [{ $ifNull: ['$credits.permanentMicros', 0] },
                         { $subtract: [amount, '$__fromSub'] }] },
             } },
-            { $unset: ['__subActive', '__fromSub'] },
+            // NOTE: __subActive/__fromSub are deliberately NOT unset here — the
+            // split the pipeline actually applied is read back below, then
+            // cleaned up in a separate call. Reconstructing the split from a
+            // pre-read snapshot would race a concurrent spend on the same user.
         ],
         { new: true },
-    ).select('credits');
+    ).select('credits __subActive __fromSub').lean();
+    // .lean(): __subActive/__fromSub are not schema paths, so a hydrated
+    // Mongoose document would silently drop them on property access even
+    // though the raw driver document has them — lean() returns the plain
+    // object MongoDB actually sent back, temp fields included.
+    if (!updated) throw new CreditsError('User not found', 404);
 
-    // Reconstruct the per-bucket split for the ledger (same rule the pipeline used).
-    const now2 = now;
-    const subActiveBefore =
-        before.credits?.subscriptionCreditsExpireAt && new Date(before.credits.subscriptionCreditsExpireAt) > now2
-            ? (before.credits.subscriptionMicros || 0) : 0;
-    const fromSub = Math.min(subActiveBefore, amount);
+    const fromSub = Number(updated.__fromSub) || 0;
     const fromPerm = amount - fromSub;
     const balance = effectiveBalanceMicros(updated.credits);
+
+    // strict: false — these two paths are deliberately not in the schema, and
+    // Mongoose's default strict casting silently drops unknown paths from an
+    // update object (the $unset would otherwise be a no-op that still bumps
+    // updatedAt, leaving the temp fields stuck on the document forever).
+    await User.updateOne(
+        { _id: userId },
+        { $unset: { __subActive: '', __fromSub: '' } },
+        { strict: false },
+    );
 
     if (fromSub > 0) {
         await record({ user: userId, deltaMicros: -fromSub, kind, reason,

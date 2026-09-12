@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import connectToDatabase from '../src/database/mongodb.js';
@@ -6,11 +6,19 @@ import User from '../src/models/user.model.js';
 import CreditTransaction from '../src/models/creditTransaction.model.js';
 import { grantCredits, spendCredits } from '../src/services/credits.service.js';
 
+// Top-level await (ESM): connect once before any test() registers, so the
+// availability check actually finishes before the tests below decide whether
+// to run. A `before()` hook does NOT help here — node:test evaluates a test's
+// `skip` option synchronously at registration time, before any async
+// `before()` has had a chance to run, so `{ skip: !dbOk }` would always see
+// the pre-hook value of `dbOk` and skip unconditionally even with a live DB.
 let dbOk = false;
-before(async () => {
-    try { await connectToDatabase(); dbOk = true; } catch { dbOk = false; }
-});
-after(async () => { if (dbOk) await mongoose.disconnect(); });
+try {
+    await connectToDatabase();
+    dbOk = true;
+} catch {
+    dbOk = false;
+}
 
 async function mkUser() {
     return User.create({
@@ -20,8 +28,8 @@ async function mkUser() {
     });
 }
 
-test('grant to permanent, spend crosses buckets subscription-first', { skip: !dbOk }, async () => {
-    if (!dbOk) return;
+test('grant to permanent, spend crosses buckets subscription-first', async (t) => {
+    if (!dbOk) { t.skip('no db'); return; }
     const u = await mkUser();
     await grantCredits(u._id, 500_000, { bucket: 'permanent', kind: 'mining', reason: 'm' });
     const exp = new Date(Date.now() + 86_400_000);
@@ -40,4 +48,8 @@ test('grant to permanent, spend crosses buckets subscription-first', { skip: !db
     assert.equal(rows.filter(r => r.kind === 'spend').length, 2);
     await User.deleteOne({ _id: u._id });
     await CreditTransaction.deleteMany({ user: u._id });
+});
+
+after(async () => {
+    if (dbOk) await mongoose.disconnect();
 });
