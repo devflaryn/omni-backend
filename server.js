@@ -27,6 +27,7 @@ import { loadRegistry } from "./backend/src/omni-exec/registry.js";
 import { createDistRouter } from "./backend/src/omni-exec/distApi.js";
 import checkoutRouter from "./backend/src/routes/checkout.routes.js";
 import { webhook as checkoutWebhook } from "./backend/src/controllers/checkout.controller.js";
+import miningRouter from "./backend/src/routes/mining.routes.js";
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.use('/api/v1/downloads', downloadsRouter);
 app.use('/api/v1/credits', creditsRouter);
 app.use('/api/v1/stats', statsRouter);
 app.use('/api/v1/subscription', subscriptionRouter);
+app.use('/api/v1/mining', miningRouter);
 
 // TODO: add a production logic
 const reactBuildPath = path.join(__dirname, 'frontend', 'dist');
