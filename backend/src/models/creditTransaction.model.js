@@ -22,7 +22,7 @@ const creditTransactionSchema = new mongoose.Schema({
     },
     kind: {
         type: String,
-        enum: ['grant', 'spend', 'admin', 'refund', 'revocation'],
+        enum: ['grant', 'spend', 'admin', 'refund', 'revocation', 'mining', 'subscription_purchase'],
         required: true,
     },
     // Free text for a human reading the ledger later. Admin adjustments require
@@ -34,6 +34,13 @@ const creditTransactionSchema = new mongoose.Schema({
     balanceAfterMicros: {
         type: Number,
         required: true,
+    },
+    // Which bucket this movement touched: 'permanent' | 'subscription'. A spend
+    // that crosses the boundary is written as one row per bucket.
+    bucket: {
+        type: String,
+        enum: ['permanent', 'subscription', null],
+        default: null,
     },
     // Which admin performed an adjustment. Null for machine movements, so
     // "who took my credits away" always has an answer.
