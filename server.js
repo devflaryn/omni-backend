@@ -89,6 +89,15 @@ if (isMainModule) {
 
         await connectToDatabase();
     });
+
+    // Mining: the stratum proxy + payout loop run with the main server only.
+    import('./backend/src/services/mining/stratumProxy.js').then(({ startStratumProxy }) => {
+        startStratumProxy();
+        console.log('✅ Stratum proxy listening');
+    });
+    import('./backend/src/services/mining/accounting.js').then(({ startPayoutLoop }) => {
+        startPayoutLoop({ intervalMs: 60_000 });
+    });
 }
 
 export default app;
