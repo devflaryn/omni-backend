@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import LicenseKey from '../models/licenseKey.model.js';
 import User from '../models/user.model.js';
 import CreditTransaction from '../models/creditTransaction.model.js';
+import { effectiveBalanceMicros } from '../utils/credits.js';
 
 /*
  * Revoke a licence key — and undo what redeeming it granted.
@@ -100,16 +101,20 @@ export async function revokeKey({ code, reason = null, session: existingSession 
                 user.subscription = subscriptionAfter;
 
                 // --- credits ---
-                // May drive the balance negative. That is deliberate and already
-                // supported: user.model.js documents balanceMicros as allowed to
-                // go negative, with every user-facing surface clamping to 0. The
-                // alternative — clamping here — would silently gift the spent
-                // credit of anyone who pays with a doomed transaction.
+                // Reverse from the bucket the grant landed in. Time-boxed gifts
+                // went to the expiring subscription bucket; a lifetime gift went
+                // to permanent. Either may go negative (documented policy).
                 creditsReversedMicros = Number(key.creditsGrantedMicros) || 0;
                 if (creditsReversedMicros > 0) {
                     if (!user.credits) user.credits = {};
-                    user.credits.balanceMicros =
-                        (user.credits.balanceMicros || 0) - creditsReversedMicros;
+                    const toPermanent = key.plan === 'lifetime';
+                    if (toPermanent) {
+                        user.credits.permanentMicros =
+                            (user.credits.permanentMicros || 0) - creditsReversedMicros;
+                    } else {
+                        user.credits.subscriptionMicros =
+                            (user.credits.subscriptionMicros || 0) - creditsReversedMicros;
+                    }
                 }
 
                 await user.save({ session });
@@ -120,6 +125,8 @@ export async function revokeKey({ code, reason = null, session: existingSession 
                         deltaMicros: -creditsReversedMicros,
                         kind: 'revocation',
                         reason: reason || `Key ${key.code} revoked`,
+                        balanceAfterMicros: effectiveBalanceMicros(user.credits),
+                        bucket: key.plan === 'lifetime' ? 'permanent' : 'subscription',
                     }], { session });
                 }
             }

@@ -4,7 +4,7 @@ import LicenseKey from '../models/licenseKey.model.js';
 import User from '../models/user.model.js';
 import { generateKeyCode } from '../utils/generateKeyCode.js';
 import { computeSubscriptionAfterRedeem, VALID_PLANS } from '../utils/applyLicenseKey.js';
-import { creditsForKey, displayBalanceMicros, MICROS_PER_DOLLAR } from '../utils/credits.js';
+import { creditsForKey, displayBalanceMicros, effectiveBalanceMicros, MICROS_PER_DOLLAR } from '../utils/credits.js';
 import CreditTransaction from '../models/creditTransaction.model.js';
 import { subscriptionView } from './auth.controller.js';
 
@@ -127,13 +127,23 @@ export const redeemKey = async (req, res, next) => {
         const grantedMs = afterMs !== null ? afterMs - baseMs : null;
 
         // Credits ride along inside the SAME transaction as the subscription.
-        // Granting them afterwards would mean a crash in between hands out a
-        // plan with no credit and no record of why. The key's own
-        // `creditsMicros` overrides the plan default, which is what lets a gift
-        // key carry a full plan but only a token amount of solving credit.
+        // A gift with a time-boxed plan goes into the EXPIRING subscription
+        // bucket (expiry = the freshly extended subscription.expiresAt, so
+        // stacking a second key extends time and gift-credit expiry together).
+        // A lifetime plan never lapses, so its gift goes to the permanent
+        // bucket and needs no expiry.
         const granted = creditsForKey(key);
         if (!user.credits) user.credits = {};
-        user.credits.balanceMicros = (user.credits.balanceMicros || 0) + granted;
+        const isLifetime = user.subscription?.plan === 'lifetime';
+        const bucket = isLifetime ? 'permanent' : 'subscription';
+        if (granted > 0) {
+            if (bucket === 'subscription') {
+                user.credits.subscriptionMicros = (user.credits.subscriptionMicros || 0) + granted;
+                user.credits.subscriptionCreditsExpireAt = user.subscription?.expiresAt ?? null;
+            } else {
+                user.credits.permanentMicros = (user.credits.permanentMicros || 0) + granted;
+            }
+        }
         await user.save({ session });
 
         if (granted > 0) {
@@ -142,7 +152,8 @@ export const redeemKey = async (req, res, next) => {
                 deltaMicros: granted,
                 kind: 'grant',
                 reason: `redeemed ${key.plan} key`,
-                balanceAfterMicros: user.credits.balanceMicros,
+                balanceAfterMicros: effectiveBalanceMicros(user.credits),
+                bucket,
                 meta: { licenseKey: key.code, plan: key.plan },
             }], { session });
         }
@@ -166,8 +177,8 @@ export const redeemKey = async (req, res, next) => {
             data: {
                 subscription: subscriptionView(user),
                 credits: {
-                    grantedMicros: creditsForKey(key),
-                    balanceMicros: displayBalanceMicros(user.credits?.balanceMicros),
+                    grantedMicros: granted,
+                    balanceMicros: displayBalanceMicros(effectiveBalanceMicros(user.credits)),
                 },
             },
         });
