@@ -12,21 +12,31 @@ import User from '../src/models/user.model.js';
 
 async function main() {
     await connectToDatabase();
-    const cursor = User.find({ 'credits.balanceMicros': { $exists: true } }).cursor();
+    // .lean(): 'credits.balanceMicros' is not a schema path (it was retired in
+    // favor of permanentMicros/subscriptionMicros), so a hydrated Mongoose
+    // document would silently read undefined for it even though the raw
+    // driver document still has it.
+    const cursor = User.find({ 'credits.balanceMicros': { $exists: true } })
+        .select('credits')
+        .lean()
+        .cursor();
     let moved = 0;
     for (let u = await cursor.next(); u != null; u = await cursor.next()) {
         const legacy = u.credits?.balanceMicros || 0;
+        // strict: false — 'credits.balanceMicros' is not in the schema, and
+        // Mongoose's default strict casting silently drops unknown paths from
+        // an update object, so the $unset would otherwise be a no-op.
         await User.updateOne(
             { _id: u._id },
             {
                 $inc: { 'credits.permanentMicros': legacy },
                 $unset: { 'credits.balanceMicros': '' },
-                $setOnInsert: {},
             },
+            { strict: false },
         );
         moved += 1;
     }
-    console.log(`[migrate] moved legacy balance for ${moved} user(s)`);
+    console.log(`[migrate] moved legacy balance into permanentMicros for ${moved} user(s)`);
     await mongoose.disconnect();
 }
 

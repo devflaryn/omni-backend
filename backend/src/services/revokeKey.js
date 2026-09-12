@@ -105,9 +105,9 @@ export async function revokeKey({ code, reason = null, session: existingSession 
                 // went to the expiring subscription bucket; a lifetime gift went
                 // to permanent. Either may go negative (documented policy).
                 creditsReversedMicros = Number(key.creditsGrantedMicros) || 0;
+                const toPermanent = key.plan === 'lifetime';
                 if (creditsReversedMicros > 0) {
                     if (!user.credits) user.credits = {};
-                    const toPermanent = key.plan === 'lifetime';
                     if (toPermanent) {
                         user.credits.permanentMicros =
                             (user.credits.permanentMicros || 0) - creditsReversedMicros;
@@ -126,7 +126,7 @@ export async function revokeKey({ code, reason = null, session: existingSession 
                         kind: 'revocation',
                         reason: reason || `Key ${key.code} revoked`,
                         balanceAfterMicros: effectiveBalanceMicros(user.credits),
-                        bucket: key.plan === 'lifetime' ? 'permanent' : 'subscription',
+                        bucket: toPermanent ? 'permanent' : 'subscription',
                     }], { session });
                 }
             }
