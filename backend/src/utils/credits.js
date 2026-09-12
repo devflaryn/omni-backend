@@ -90,3 +90,62 @@ export function canAffordStep(balanceMicros) {
 export function displayBalanceMicros(balanceMicros) {
     return Math.max(0, Number(balanceMicros) || 0);
 }
+
+export const CREDITS_PER_DOLLAR = 100;
+export const MICROS_PER_CREDIT = MICROS_PER_DOLLAR / CREDITS_PER_DOLLAR; // 10_000
+export const MINING_PAYOUT_RATE = 0.8;
+export const DAY_PRICE_MICROS = 80 * MICROS_PER_CREDIT; // 800_000
+
+export function creditsToMicros(credits) {
+    const n = Number(credits);
+    return Number.isFinite(n) ? Math.round(n * MICROS_PER_CREDIT) : 0;
+}
+
+export function microsToCredits(micros) {
+    return (Number(micros) || 0) / MICROS_PER_CREDIT;
+}
+
+/** "80 credits" / "1 credit". Clamped to >= 0 for display. */
+export function formatCredits(micros) {
+    const n = Math.max(0, Math.round(microsToCredits(micros)));
+    return `${n} credit${n === 1 ? '' : 's'}`;
+}
+
+function subActiveMicros(credits, now) {
+    const exp = credits?.subscriptionCreditsExpireAt
+        ? new Date(credits.subscriptionCreditsExpireAt) : null;
+    if (!exp || exp <= now) return 0;
+    return Number(credits?.subscriptionMicros) || 0;
+}
+
+/** Live balance: permanent + unexpired subscription. */
+export function effectiveBalanceMicros(credits, now = new Date()) {
+    return (Number(credits?.permanentMicros) || 0) + subActiveMicros(credits, now);
+}
+
+/**
+ * Pure spend planner. Subscription bucket first (only if unexpired), remainder
+ * from permanent; permanent may go negative (the last authorized step). An
+ * expired subscription bucket is treated as 0 AND cleared in `next`.
+ */
+export function splitSpend(credits, amountMicros, now = new Date()) {
+    const amount = Math.max(0, Math.round(Number(amountMicros) || 0));
+    const permanent = Number(credits?.permanentMicros) || 0;
+    const subActive = subActiveMicros(credits, now);
+    const expired = (Number(credits?.subscriptionMicros) || 0) > 0 && subActive === 0;
+
+    const fromSubMicros = Math.min(subActive, amount);
+    const fromPermanentMicros = amount - fromSubMicros;
+
+    const nextSub = subActive - fromSubMicros; // 0 when it was expired
+    const next = {
+        permanentMicros: permanent - fromPermanentMicros,
+        subscriptionMicros: expired ? 0 : nextSub,
+        subscriptionCreditsExpireAt:
+            (expired || nextSub === 0) ? null : credits.subscriptionCreditsExpireAt,
+    };
+    return {
+        fromSubMicros, fromPermanentMicros, next,
+        effectiveAfterMicros: Math.max(0, next.permanentMicros + (expired ? 0 : nextSub)),
+    };
+}

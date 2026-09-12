@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -12,7 +12,13 @@ import {
     dollarsToMicros,
     microsToDollars,
     formatMicros,
+    CREDITS_PER_DOLLAR, DAY_PRICE_MICROS, MINING_PAYOUT_RATE,
+    creditsToMicros, microsToCredits, formatCredits,
+    effectiveBalanceMicros, splitSpend,
 } from '../src/utils/credits.js';
+
+const future = new Date(Date.now() + 86_400_000);
+const past = new Date(Date.now() - 86_400_000);
 
 describe('grants', () => {
     it('gives each plan the advertised amount', () => {
@@ -131,4 +137,51 @@ describe('conversions', () => {
         assert.equal(dollarsToMicros('abc'), 0);
         assert.equal(microsToDollars(null), 0);
     });
+});
+
+test('unit constants', () => {
+    assert.equal(CREDITS_PER_DOLLAR, 100);
+    assert.equal(DAY_PRICE_MICROS, 800_000);
+    assert.equal(MINING_PAYOUT_RATE, 0.8);
+    assert.equal(creditsToMicros(80), 800_000);
+    assert.equal(microsToCredits(800_000), 80);
+    assert.equal(formatCredits(800_000), '80 credits');
+    assert.equal(formatCredits(10_000), '1 credit');
+});
+
+test('effective balance ignores an expired subscription bucket', () => {
+    const c = { permanentMicros: 500_000, subscriptionMicros: 300_000, subscriptionCreditsExpireAt: past };
+    assert.equal(effectiveBalanceMicros(c), 500_000);
+});
+
+test('effective balance counts an unexpired subscription bucket', () => {
+    const c = { permanentMicros: 500_000, subscriptionMicros: 300_000, subscriptionCreditsExpireAt: future };
+    assert.equal(effectiveBalanceMicros(c), 800_000);
+});
+
+test('splitSpend takes from subscription first, then permanent', () => {
+    const c = { permanentMicros: 500_000, subscriptionMicros: 300_000, subscriptionCreditsExpireAt: future };
+    const r = splitSpend(c, 400_000);
+    assert.equal(r.fromSubMicros, 300_000);
+    assert.equal(r.fromPermanentMicros, 100_000);
+    assert.equal(r.next.subscriptionMicros, 0);
+    assert.equal(r.next.permanentMicros, 400_000);
+    assert.equal(r.effectiveAfterMicros, 400_000);
+});
+
+test('splitSpend ignores + clears an expired subscription bucket', () => {
+    const c = { permanentMicros: 500_000, subscriptionMicros: 300_000, subscriptionCreditsExpireAt: past };
+    const r = splitSpend(c, 100_000);
+    assert.equal(r.fromSubMicros, 0);
+    assert.equal(r.fromPermanentMicros, 100_000);
+    assert.equal(r.next.subscriptionMicros, 0);
+    assert.equal(r.next.subscriptionCreditsExpireAt, null);
+    assert.equal(r.next.permanentMicros, 400_000);
+});
+
+test('splitSpend overdraws permanent on the last step', () => {
+    const c = { permanentMicros: 5_000, subscriptionMicros: 0, subscriptionCreditsExpireAt: null };
+    const r = splitSpend(c, 30_000);
+    assert.equal(r.next.permanentMicros, -25_000);
+    assert.equal(r.effectiveAfterMicros, 0); // clamped view
 });
