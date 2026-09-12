@@ -18,6 +18,12 @@ export class RealUpstream extends EventEmitter {
         this.sock.on('close', () => this.emit('close'));
     }
     send(line) { this.sock?.write(line.endsWith('\n') ? line : line + '\n'); }
+    // Forward a share submit to the real pool as a stratum JSON-RPC line.
+    // Detecting whether the POOL accepted it (vs. this just being sent) is the
+    // deferred real-pool integration point: a real connector must parse the
+    // pool's response on the 'data' event and emit 'accepted' from there, the
+    // same shape FakeUpstream emits synthetically for tests today.
+    submit(params) { this.send(JSON.stringify({ id: Date.now(), method: 'submit', params })); }
     destroy() { this.sock?.destroy(); }
 }
 

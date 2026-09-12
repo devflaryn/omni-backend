@@ -94,10 +94,10 @@ if (isMainModule) {
     import('./backend/src/services/mining/stratumProxy.js').then(({ startStratumProxy }) => {
         startStratumProxy();
         console.log('✅ Stratum proxy listening');
-    });
+    }).catch((err) => console.error('❌ Stratum proxy failed to start', err));
     import('./backend/src/services/mining/accounting.js').then(({ startPayoutLoop }) => {
         startPayoutLoop({ intervalMs: 60_000 });
-    });
+    }).catch((err) => console.error('❌ Mining payout loop failed to start', err));
 }
 
 export default app;

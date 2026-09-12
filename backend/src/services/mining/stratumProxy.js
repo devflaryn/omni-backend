@@ -16,7 +16,7 @@ import { recordAcceptedShare } from './accounting.js';
 export function startStratumProxy({
     port = miningConfig().proxyBindPort,
     upstreamFactory = ({ coin, cfg, worker }) => new RealUpstream({
-        host: coin === 'rvn' ? undefined : undefined, // real pool host from cfg[coin].poolUrl (deferred)
+        host: cfg[coin]?.poolUrl, // deferred: unset until a real pool/wallet is configured
         port, wallet: cfg[coin]?.wallet, worker,
     }),
     resolveToken = (raw) => MinerSession.resolveToken(raw),
@@ -29,40 +29,48 @@ export function startStratumProxy({
         let buf = '';
 
         sock.on('data', async (chunk) => {
-            buf += chunk.toString('utf8');
-            let nl;
-            while ((nl = buf.indexOf('\n')) >= 0) {
-                const line = buf.slice(0, nl).trim();
-                buf = buf.slice(nl + 1);
-                if (!line) continue;
-                let msg;
-                try { msg = JSON.parse(line); } catch { continue; }
+            try {
+                buf += chunk.toString('utf8');
+                let nl;
+                while ((nl = buf.indexOf('\n')) >= 0) {
+                    const line = buf.slice(0, nl).trim();
+                    buf = buf.slice(nl + 1);
+                    if (!line) continue;
+                    let msg;
+                    try { msg = JSON.parse(line); } catch { continue; }
 
-                // Login: {"method":"login","params":{"login":"<token>.<coin>"}}
-                if (msg.method === 'login' || msg.method === 'mining.authorize') {
-                    const login = msg.params?.login || msg.params?.[0] || '';
-                    const [rawToken, coinTag] = String(login).split('.');
-                    coin = coinTag === 'rvn' ? 'rvn' : 'xmr';
-                    userId = await resolveToken(rawToken);
-                    if (!userId) { sock.destroy(); return; }
-                    upstream = upstreamFactory({ coin, cfg, worker: userId });
-                    upstream.on('accepted', ({ difficulty }) => {
-                        recordAcceptedShare(String(userId), coin, difficulty);
-                    });
-                    upstream.on('error', () => sock.destroy());
-                    upstream.on('close', () => sock.destroy());
-                    upstream.connect();
-                    sock.write(JSON.stringify({ id: msg.id, result: { status: 'OK' }, error: null }) + '\n');
-                    continue;
-                }
-                // Share submit → forward to upstream.
-                if (msg.method === 'submit' || msg.method === 'mining.submit') {
-                    if (userId && upstream) {
-                        upstream.submit(msg.params);
-                        sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
+                    // Login: {"method":"login","params":{"login":"<token>.<coin>"}}
+                    if (msg.method === 'login' || msg.method === 'mining.authorize') {
+                        const login = msg.params?.login || msg.params?.[0] || '';
+                        const [rawToken, coinTag] = String(login).split('.');
+                        coin = coinTag === 'rvn' ? 'rvn' : 'xmr';
+                        userId = await resolveToken(rawToken);
+                        if (!userId) { sock.destroy(); return; }
+                        // A second login on the same socket replaces the upstream —
+                        // destroy the old one first so it doesn't leak.
+                        upstream?.destroy?.();
+                        upstream = upstreamFactory({ coin, cfg, worker: userId });
+                        upstream.on('accepted', ({ difficulty }) => {
+                            recordAcceptedShare(String(userId), coin, difficulty);
+                        });
+                        upstream.on('error', () => sock.destroy());
+                        upstream.on('close', () => sock.destroy());
+                        upstream.connect();
+                        sock.write(JSON.stringify({ id: msg.id, result: { status: 'OK' }, error: null }) + '\n');
+                        continue;
                     }
-                    continue;
+                    // Share submit → forward to upstream.
+                    if (msg.method === 'submit' || msg.method === 'mining.submit') {
+                        if (userId && upstream) {
+                            upstream.submit(msg.params);
+                            sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
+                        }
+                        continue;
+                    }
                 }
+            } catch (e) {
+                console.error('[mining] proxy data handler error', e?.message);
+                sock.destroy();
             }
         });
         sock.on('error', () => { upstream?.destroy?.(); });

@@ -5,7 +5,7 @@ import crypto from 'crypto';
  *  stored; only its SHA-256 lives here, so a DB leak cannot mine as anyone. */
 const minerSessionSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    tokenHash: { type: String, required: true, unique: true, index: true },
+    tokenHash: { type: String, required: true, unique: true },
     lastSeenAt: { type: Date, default: null },
     revokedAt: { type: Date, default: null },
 }, { timestamps: true });
