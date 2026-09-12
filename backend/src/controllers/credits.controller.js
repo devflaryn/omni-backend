@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 
 import User from '../models/user.model.js';
 import { JWT_SECRET } from '../config/env.js';
-import { displayBalanceMicros, microsToDollars } from '../utils/credits.js';
+import { displayBalanceMicros, microsToDollars, effectiveBalanceMicros, microsToCredits } from '../utils/credits.js';
 import {
     authorizeStep,
     chargeForSolve,
@@ -40,9 +40,14 @@ async function userFromForwardedToken(req) {
     }
 }
 
-function balanceView(balanceMicros) {
-    const shown = displayBalanceMicros(balanceMicros);
-    return { balanceMicros: shown, balance: microsToDollars(shown) };
+function balanceView(credits) {
+    const shown = displayBalanceMicros(effectiveBalanceMicros(credits));
+    return { balanceMicros: shown, balance: microsToDollars(shown), credits: microsToCredits(shown) };
+}
+
+function balanceViewFromMicros(micros) {
+    const shown = displayBalanceMicros(micros);
+    return { balanceMicros: shown, balance: microsToDollars(shown), credits: microsToCredits(shown) };
 }
 
 // --------------------------------------------------------------- the user
@@ -50,7 +55,7 @@ function balanceView(balanceMicros) {
 export const getMyCredits = async (req, res, next) => {
     try {
         const user = await User.findById(req.user._id).select('credits');
-        res.status(200).json({ success: true, data: balanceView(user?.credits?.balanceMicros) });
+        res.status(200).json({ success: true, data: balanceView(user?.credits) });
     } catch (error) {
         next(error);
     }
@@ -86,7 +91,7 @@ export const internalAuthorize = async (req, res, next) => {
                 userId: String(user._id),
                 // Clamped: the solver echoes this into the client UI, which
                 // must never show the small overdraft the last step can leave.
-                ...balanceView(balanceMicros),
+                ...balanceViewFromMicros(balanceMicros),
             },
         });
     } catch (error) {
@@ -107,7 +112,7 @@ export const internalCharge = async (req, res, next) => {
             user._id, req.body?.upstreamCostMicros, req.body?.meta);
         res.status(200).json({
             success: true,
-            data: { chargedMicros, ...balanceView(balanceMicros) },
+            data: { chargedMicros, ...balanceViewFromMicros(balanceMicros) },
         });
     } catch (error) {
         next(error);
@@ -133,7 +138,7 @@ export const adminListUsers = async (req, res, next) => {
                 ...u,
                 // The admin sees the TRUE balance, overdraft included — they are
                 // the one person who needs the real number to reconcile it.
-                balanceMicros: u.credits?.balanceMicros ?? 0,
+                balanceMicros: effectiveBalanceMicros(u.credits),
             })),
         });
     } catch (error) {

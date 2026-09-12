@@ -8,6 +8,7 @@ import {
     daysRemaining,
     PLAN_LABELS,
 } from '../utils/applyLicenseKey.js';
+import { effectiveBalanceMicros, displayBalanceMicros, microsToCredits } from '../utils/credits.js';
 
 const MIN_PASSWORD = 6;
 
@@ -33,6 +34,10 @@ export function subscriptionView(user, now = new Date()) {
         active,
         tier: active ? 'premium' : 'free',
         daysRemaining: daysRemaining(sub, now),
+        credits: {
+            balanceMicros: displayBalanceMicros(effectiveBalanceMicros(user?.credits)),
+            credits: microsToCredits(displayBalanceMicros(effectiveBalanceMicros(user?.credits))),
+        },
     };
 }
 
