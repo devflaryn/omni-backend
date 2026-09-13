@@ -90,6 +90,12 @@ export function startStratumProxy({
 
         let userId = null;
         let currentDiff = 0;
+        // The wallet-based username we authorized to the pool. The miner keeps
+        // using its OWN worker name in every mining.submit params[0]; the pool
+        // ties a submit to the connection's authorized worker, so the submit's
+        // worker field must be rewritten to this too or the pool rejects the
+        // share ("Malformed PoW result").
+        let poolUsername = null;
 
         // Proxy-assigned ids for every miner request we forward upstream,
         // so acceptance can never be keyed on a miner-controlled id (see
@@ -242,12 +248,19 @@ export function startStratumProxy({
                         const workerTag = String(userId).slice(-8);
                         const wallet = cfg[coin]?.wallet;
                         const newUsername = `${wallet}.${workerTag}`;
+                        poolUsername = newUsername;
                         msg.params = isLogin
                             ? { ...msg.params, login: newUsername }
                             : [newUsername, ...msg.params.slice(1)];
                     }
 
                     const isSubmit = msg.method === 'mining.submit' || msg.method === 'submit';
+                    // Rewrite the submit's worker (params[0]) to the same
+                    // wallet-based name we authorized with, so the pool accepts
+                    // the share instead of rejecting it as malformed.
+                    if (isSubmit && poolUsername && Array.isArray(msg.params) && msg.params.length > 0) {
+                        msg.params = [poolUsername, ...msg.params.slice(1)];
+                    }
                     const hasId = Object.prototype.hasOwnProperty.call(msg, 'id') && msg.id !== null;
                     if (hasId) {
                         if (pending.size >= MAX_INFLIGHT) {
