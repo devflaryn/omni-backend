@@ -7,10 +7,21 @@ want the Earn tab live for real users. Nothing here is done automatically.
 The executor downloads the miner on demand from the `tools` channel as
 `xmrig-win`. Until it exists, "Download miner & enroll" fails.
 - Get the official XMRig Windows release (it supports KawPow): https://github.com/xmrig/xmrig/releases
+  (verified working: v6.26.0 `xmrig-6.26.0-windows-x64.zip`).
+- **Bundle the CUDA plugin for NVIDIA.** The GPU spawn args are `--cuda --opencl`.
+  `--cuda` auto-detects NVIDIA (fastest for KawPow) but needs `xmrig-cuda.dll`
+  (+ the CUDA runtime) shipped ALONGSIDE `xmrig.exe`; `--opencl` covers AMD.
+  With a plain build (no CUDA plugin) on an NVIDIA box, `--opencl` alone defaults
+  to hunting an AMD platform and finds no GPU. So the `xmrig-win` artifact should
+  be a zip of `xmrig.exe` + `xmrig-cuda.dll` + CUDA runtime dlls. (Verified: a
+  plain OpenCL build only mines NVIDIA with an explicit `--opencl-platform=<idx>`,
+  which the shipped args don't set — bundle CUDA instead.)
 - Add it to `omni-backend/dist/registry.json` under the `tools` channel as
   `name: "xmrig-win"`, `kind: "tool"`, with its exact `sha256` and byte size,
   served by the existing dist router (`/omni/dist`). Match the shape of the
-  existing `qemu-portable-win` / `adb-win` tool entries.
+  existing `qemu-portable-win` / `adb-win` tool entries. (`miner.py` currently
+  places a single `xmrig.exe`; for a bundle, it should extract the whole zip into
+  the miner dir — small `place`-side tweak, noted here so it isn't missed.)
 - The download is sha256-verified and atomic-swapped client-side (`miner.py`).
 
 ## 2. Backend env on the VPS (`.env.production.local`)
@@ -20,7 +31,7 @@ MINING_PROXY_ENABLED=1          # off by default; this turns the proxy on
 MINING_STRATUM_HOST=179.198.197.7   # what the executor is told to connect to
 MINING_STRATUM_PORT=3333
 MINING_PROXY_PORT=3333
-RVN_POOL_URL=rvn.herominers.com:1140
+RVN_POOL_URL=ravencoin.herominers.com:1140
 RVN_WALLET=RRQSXsXDSnhRcgowRrSwh4BVV3nR5hfF8b
 ```
 Restart the backend (pm2/ecosystem). The proxy + payout loop start with it.
@@ -46,9 +57,17 @@ custom-protocol`) and distribute it. The Earn tab is GPU-only during beta.
 - Full earn→credit path (relay → accepted-share sniff → payout → ledger) drove
   a test user from 0 → 24 credits against a local fake pool; the pool saw the
   wallet, never the token.
+- **Real GPU mining confirmed**: XMRig 6.26.0, RTX 4060 via OpenCL (NVIDIA CUDA
+  platform, `--opencl-platform=0`), KawPow ~14.4 MH/s against
+  `ravencoin.herominers.com:1140`, **2 accepted / 0 rejected** shares to the
+  wallet (worker `omnitest01`). This was a DIRECT xmrig→pool run (GPU + pool +
+  wallet proven); the proxy→credit half is proven separately by the fake-pool
+  run above. The two together cover the whole chain; a single xmrig→proxy→pool
+  live run is the last nice-to-have.
+- Correct HeroMiners RVN host is `ravencoin.herominers.com` (NOT
+  `rvn.herominers.com`, which does not resolve).
 - Security review confirmed: no credit-forgery path from an untrusted miner;
-  DoS vectors bounded. Safe to enable pending a live smoke test against a real
-  HeroMiners endpoint (step 3 reachability).
+  DoS vectors bounded.
 
 ## Still deferred (not blockers, note before scale)
 - `flushPayouts` has an in-process re-entrancy guard but no cross-process lock
