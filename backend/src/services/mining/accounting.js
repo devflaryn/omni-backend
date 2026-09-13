@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { shareValueMicros } from './valuation.js';
-import { MINING_PAYOUT_RATE } from '../../utils/credits.js';
+import { MINING_PAYOUT_RATE, MICROS_PER_DOLLAR, MICROS_PER_CREDIT } from '../../utils/credits.js';
 import { grantCredits as defaultGrant } from '../credits.service.js';
 import { miningConfig } from '../../config/mining.js';
 import CreditTransaction from '../../models/creditTransaction.model.js';
@@ -18,6 +18,16 @@ export function recordAcceptedShare(userId, coin, difficulty) {
 }
 
 export function _getAccrual() { return accrual; }
+
+// credits/hour a client can expect per H/s of live hashrate, for a given coin's
+// usdPerDiff. The share difficulty itself cancels out of this ratio (a higher
+// diff means proportionally fewer, proportionally-more-valuable shares per
+// second), so this is exactly hashrate * ratePerHash, independent of pool
+// difficulty settings.
+function creditsPerHashPerHour(usdPerDiff) {
+    const rate = Number(usdPerDiff) || 0;
+    return (rate * 3600 * MICROS_PER_DOLLAR * MINING_PAYOUT_RATE) / MICROS_PER_CREDIT;
+}
 
 // Guards against two overlapping flushes double-paying the same accrual:
 // a second call that arrives while one is still awaiting a grant returns
@@ -106,11 +116,23 @@ export async function getUserMiningStatus(userId) {
         creditedMicros = rows[0]?.total || 0;
     } catch { /* no DB in a unit context */ }
 
+    const cfg = miningConfig();
     return {
         enrolled,
         hashrate: a?.hashrate || 0,
         creditedMicros,
         sessionMicros: a?.sessionMicros || 0,
         lastShareAt: a?.lastShareAt || null,
+        // credits per H/s per hour, for the client to estimate earnings from a
+        // live hashrate reading without knowing anything about share difficulty.
+        rates: {
+            rvn: creditsPerHashPerHour(cfg?.valuation?.rvn?.usdPerDiff),
+            xmr: creditsPerHashPerHour(cfg?.valuation?.xmr?.usdPerDiff),
+        },
+        // which coins are actually configured/mineable right now.
+        coins: {
+            rvn: Boolean(cfg?.rvn?.poolUrl && cfg?.rvn?.wallet),
+            xmr: Boolean(cfg?.xmr?.poolUrl && cfg?.xmr?.wallet),
+        },
     };
 }

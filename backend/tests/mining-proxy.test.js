@@ -48,6 +48,38 @@ function startFakePool({ rejectSubmitJobIds = new Set() } = {}) {
     return { server, authorizedUsernames, receivedIds };
 }
 
+// A minimal fake Monero-style (XMR/RandomX) `login`-first pool. Real Monero
+// stratum answers `submit` with an object (`result: {status:'OK'}`), not the
+// KawPow-style boolean the proxy's acceptance check (`msg.result === true`)
+// currently looks for; this fake pool answers `true` so the test exercises
+// per-connection COIN ROUTING (the thing being added here) without also
+// requiring XMR-shaped acceptance-result parsing, which is a separate,
+// pre-existing gap — see the report's concerns.
+function startFakeXmrPool() {
+    const authorizedLogins = [];
+    const server = net.createServer((sock) => {
+        let buf = '';
+        sock.on('data', (chunk) => {
+            buf += chunk.toString('utf8');
+            let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim();
+                buf = buf.slice(nl + 1);
+                if (!line) continue;
+                let msg;
+                try { msg = JSON.parse(line); } catch { continue; }
+                if (msg.method === 'login') {
+                    authorizedLogins.push(msg.params?.login);
+                    sock.write(JSON.stringify({ id: msg.id, result: { id: 'loginid1', status: 'OK' }, error: null }) + '\n');
+                } else if (msg.method === 'submit') {
+                    sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
+                }
+            }
+        });
+    });
+    return { server, authorizedLogins };
+}
+
 function listen(server, port) {
     return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -361,5 +393,98 @@ test('an unknown miner token is refused: socket destroyed, nothing credited', as
         client?.destroy();
         await stopStratumProxy(proxy);
         await new Promise((r) => pool.close(r));
+    }
+});
+
+test('per-connection coin routing: a login-first connection routes to xmr and credits coin xmr, while a subscribe-first connection on the SAME proxy instance still routes to rvn', async () => {
+    const XMR_POOL_PORT = 39513;
+    const RVN_POOL_PORT = 39514;
+    const PROXY_PORT = 39515;
+    const { server: xmrPool, authorizedLogins } = startFakeXmrPool();
+    const { server: rvnPool, authorizedUsernames: rvnAuthorized } = startFakePool();
+    let proxy;
+    let xmrClient;
+    let rvnClient;
+    try {
+        await listen(xmrPool, XMR_POOL_PORT);
+        await listen(rvnPool, RVN_POOL_PORT);
+        _getAccrual().clear();
+
+        const cfg = {
+            xmr: { poolUrl: `127.0.0.1:${XMR_POOL_PORT}`, wallet: 'XMRWALLET' },
+            rvn: { poolUrl: `127.0.0.1:${RVN_POOL_PORT}`, wallet: 'RVNWALLET' },
+        };
+        proxy = startStratumProxy({
+            port: PROXY_PORT,
+            cfg,
+            // 'tok' is the token driveMiner's rvn flow hardcodes (`tok.rvn`).
+            resolveToken: async (token) => {
+                if (token === 'xmrtok') return 'user-xmr';
+                if (token === 'tok') return 'user-rvn';
+                return null;
+            },
+        });
+
+        // --- CPU/xmr side: first message is `login`. ---
+        xmrClient = net.connect(PROXY_PORT, '127.0.0.1');
+        const xmrReceived = await new Promise((resolve, reject) => {
+            const received = [];
+            let buf = '';
+            xmrClient.on('data', (chunk) => {
+                buf += chunk.toString('utf8');
+                let nl;
+                while ((nl = buf.indexOf('\n')) >= 0) {
+                    const line = buf.slice(0, nl).trim();
+                    buf = buf.slice(nl + 1);
+                    if (!line) continue;
+                    const msg = JSON.parse(line);
+                    received.push(msg);
+                    if (msg.id === 1 && msg.result) {
+                        xmrClient.write(JSON.stringify({
+                            id: 2, method: 'submit',
+                            params: { id: msg.result.id, job_id: 'j1', nonce: '00000000', result: 'deadbeef' },
+                        }) + '\n');
+                    }
+                    if (msg.id === 2) { resolve(received); return; }
+                }
+            });
+            xmrClient.on('error', reject);
+            xmrClient.write(JSON.stringify({
+                id: 1, method: 'login', params: { login: 'xmrtok.worker', pass: 'x' },
+            }) + '\n');
+            setTimeout(() => reject(new Error('timeout waiting for xmr submit response')), 3000);
+        });
+
+        assert.equal(authorizedLogins.length, 1);
+        assert.ok(authorizedLogins[0].startsWith('XMRWALLET.'), `expected xmr wallet-prefixed login, got ${authorizedLogins[0]}`);
+        assert.ok(xmrReceived.some((m) => m.id === 2 && m.result === true), 'submit response reached the xmr miner');
+
+        await new Promise((r) => setTimeout(r, 50));
+        const xa = _getAccrual().get('user-xmr');
+        assert.ok(xa, 'accrual entry exists for user-xmr');
+        assert.ok(xa.diffByCoin.xmr > 0, 'an accepted xmr submit must be credited under coin xmr');
+        assert.equal(xa.diffByCoin.rvn, 0, 'an xmr share must never be credited under rvn');
+
+        // --- GPU/rvn side, SAME proxy instance: first message is `mining.subscribe`. ---
+        rvnClient = net.connect(PROXY_PORT, '127.0.0.1');
+        await driveMiner(
+            rvnClient,
+            { subscribeId: 501, authorizeId: 502, submits: [{ id: 503, jobId: 'jobrvn' }] },
+            (msg) => msg.id === 503,
+        );
+        assert.equal(rvnAuthorized.length, 1);
+        assert.ok(rvnAuthorized[0].startsWith('RVNWALLET.'), `expected rvn wallet-prefixed username, got ${rvnAuthorized[0]}`);
+
+        await new Promise((r) => setTimeout(r, 50));
+        const ra = _getAccrual().get('user-rvn');
+        assert.ok(ra, 'accrual entry exists for user-rvn');
+        assert.ok(ra.diffByCoin.rvn > 0, 'an accepted rvn submit must be credited under coin rvn');
+        assert.equal(ra.diffByCoin.xmr, 0, 'an rvn share must never be credited under xmr');
+    } finally {
+        xmrClient?.destroy();
+        rvnClient?.destroy();
+        await stopStratumProxy(proxy);
+        await new Promise((r) => xmrPool.close(r));
+        await new Promise((r) => rvnPool.close(r));
     }
 });
