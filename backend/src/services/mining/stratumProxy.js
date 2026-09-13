@@ -6,16 +6,37 @@ import { recordAcceptedShare } from './accounting.js';
 /**
  * A transparent bidirectional stratum relay. A miner (e.g. xmrig) connects
  * here as if this WERE the pool; the proxy opens a real connection to the
- * configured pool immediately, relays every line verbatim in both
- * directions, and sniffs the traffic to (a) rewrite the miner's login
- * username to the pool wallet (keyed by the miner's per-user token) and
- * (b) count shares the POOL actually accepted (never shares merely
- * submitted) toward that user's accrual.
+ * configured pool immediately, relays traffic in both directions, and
+ * sniffs it to (a) rewrite the miner's login username to the pool wallet
+ * (keyed by the miner's per-user token) and (b) count shares the POOL
+ * actually accepted (never shares merely submitted) toward that user's
+ * accrual.
+ *
+ * SECURITY: the miner is untrusted and fully controls the JSON-RPC `id` it
+ * sends. Crediting must never be keyed on a miner-supplied id, or a miner
+ * could mint credits by reusing an id from an earlier request the pool
+ * happens to answer with `result:true` (e.g. re-authorize) without ever
+ * submitting a valid share. To close this, every miner request id is
+ * REWRITTEN to a proxy-assigned, per-connection monotonic id before it is
+ * forwarded upstream; `pending` remembers what that id was for (in
+ * particular, whether it was a submit, and the difficulty in effect at the
+ * time). Only a pool response that lands on one of OUR ids, for an entry we
+ * recorded as a submit, with `result === true` and no `error`, credits a
+ * share — and that entry is removed on ANY response (accepted or not), so
+ * an id can never be reused to trigger a second credit.
  *
  * Injectable deps make it testable without a real pool:
  *  - connectUpstream({ host, port }) -> a net.Socket-like duplex stream
  *  - resolveToken(raw) -> userId (defaults to MinerSession.resolveToken)
  */
+
+// This is an unauthenticated raw TCP port. Bound both the per-line buffer
+// (a miner that never sends '\n' must not grow memory unbounded) and the
+// pre-connect send queue (a miner that floods before upstream connects must
+// not grow memory unbounded either).
+const MAX_LINE = 64 * 1024;
+const MAX_QUEUED = 1000;
+
 function parsePoolEndpoint(poolUrl) {
     const raw = String(poolUrl || '').trim();
     if (!raw) return { host: undefined, port: undefined };
@@ -34,7 +55,9 @@ function chooseCoin(cfg) {
 }
 
 // Split a newline-delimited chunk into complete lines, carrying any partial
-// trailing line forward in `buf`. Returns { lines, buf }.
+// trailing line forward in `buf`. `overflow` is set when the still-partial
+// buffer has grown past MAX_LINE with no newline in sight — the caller
+// should treat that as abusive input and tear the connection down.
 function splitLines(buf, chunk) {
     buf += chunk.toString('utf8');
     const lines = [];
@@ -43,7 +66,7 @@ function splitLines(buf, chunk) {
         lines.push(buf.slice(0, nl).replace(/\r$/, ''));
         buf = buf.slice(nl + 1);
     }
-    return { lines, buf };
+    return { lines, buf, overflow: buf.length > MAX_LINE };
 }
 
 export function startStratumProxy({
@@ -60,12 +83,19 @@ export function startStratumProxy({
 
         let userId = null;
         let currentDiff = 0;
-        const submitIds = new Set();
+
+        // Proxy-assigned ids for every miner request we forward upstream,
+        // so acceptance can never be keyed on a miner-controlled id (see
+        // the SECURITY note above). Popped (deleted) on ANY pool response,
+        // accepted or not, so the map stays bounded and an id can never be
+        // reused to trigger a second credit.
+        let nextUpstreamId = 1;
+        const pending = new Map(); // upstreamId -> { minerId, isSubmit, diffAtSubmit }
 
         let minerBuf = '';
         let poolBuf = '';
         let upstreamConnected = false;
-        const pending = []; // raw lines from the miner queued until upstream connects
+        const sendQueue = []; // rewritten lines queued until upstream connects
 
         let destroyed = false;
         const teardown = () => {
@@ -79,32 +109,39 @@ export function startStratumProxy({
 
         upstream.on('connect', () => {
             upstreamConnected = true;
-            for (const line of pending) upstream.write(line + '\n');
-            pending.length = 0;
+            for (const line of sendQueue) upstream.write(line + '\n');
+            sendQueue.length = 0;
         });
 
         upstream.on('data', (chunk) => {
             try {
                 const r = splitLines(poolBuf, chunk);
                 poolBuf = r.buf;
+                if (r.overflow) { teardown(); return; }
                 for (const line of r.lines) {
                     if (!line) continue;
                     let msg;
-                    try { msg = JSON.parse(line); } catch { sock.write(line + '\n'); continue; }
+                    try { msg = JSON.parse(line); } catch { continue; } // drop malformed, never relay garbage
 
                     if (msg.method === 'mining.set_difficulty' && Array.isArray(msg.params)) {
                         const d = Number(msg.params[0]);
                         if (Number.isFinite(d)) currentDiff = d;
-                    } else if (
-                        msg.id !== undefined && msg.id !== null
-                        && submitIds.has(msg.id)
-                        && msg.result === true
-                        && !msg.error
-                    ) {
-                        submitIds.delete(msg.id);
-                        if (userId) recordAcceptedShare(String(userId), coin, currentDiff || 1);
+                        sock.write(line + '\n');
+                        continue;
                     }
 
+                    if (msg.id !== undefined && msg.id !== null && pending.has(msg.id)) {
+                        const entry = pending.get(msg.id);
+                        pending.delete(msg.id); // remove on ANY response — bounds the map, kills id reuse
+                        if (entry.isSubmit && msg.result === true && !msg.error && userId) {
+                            recordAcceptedShare(String(userId), coin, entry.diffAtSubmit || currentDiff || 1);
+                        }
+                        sock.write(JSON.stringify({ ...msg, id: entry.minerId }) + '\n');
+                        continue;
+                    }
+
+                    // Pool-initiated request/notification not correlated to
+                    // one of our forwarded ids — forward untouched.
                     sock.write(line + '\n');
                 }
             } catch (e) {
@@ -119,13 +156,11 @@ export function startStratumProxy({
             try {
                 const r = splitLines(minerBuf, chunk);
                 minerBuf = r.buf;
+                if (r.overflow) { teardown(); return; }
                 for (const line of r.lines) {
                     if (!line) continue;
                     let msg;
-                    try { msg = JSON.parse(line); } catch {
-                        if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
-                        continue;
-                    }
+                    try { msg = JSON.parse(line); } catch { continue; } // drop malformed, never relay garbage
 
                     if (msg.method === 'mining.authorize' || msg.method === 'login') {
                         const isLogin = msg.method === 'login';
@@ -137,21 +172,26 @@ export function startStratumProxy({
                         const workerTag = String(userId).slice(-8);
                         const wallet = cfg[coin]?.wallet;
                         const newUsername = `${wallet}.${workerTag}`;
-                        const rewritten = isLogin
-                            ? { ...msg, params: { ...msg.params, login: newUsername } }
-                            : { ...msg, params: [newUsername, ...msg.params.slice(1)] };
-                        const outLine = JSON.stringify(rewritten);
-                        if (upstreamConnected) upstream.write(outLine + '\n'); else pending.push(outLine);
-                        continue;
+                        msg.params = isLogin
+                            ? { ...msg.params, login: newUsername }
+                            : [newUsername, ...msg.params.slice(1)];
                     }
 
-                    if (msg.method === 'mining.submit' || msg.method === 'submit') {
-                        if (msg.id !== undefined && msg.id !== null) submitIds.add(msg.id);
-                        if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
-                        continue;
+                    const isSubmit = msg.method === 'mining.submit' || msg.method === 'submit';
+                    const hasId = Object.prototype.hasOwnProperty.call(msg, 'id') && msg.id !== null;
+                    if (hasId) {
+                        const uid = nextUpstreamId++;
+                        pending.set(uid, { minerId: msg.id, isSubmit, diffAtSubmit: currentDiff });
+                        msg.id = uid;
                     }
 
-                    if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
+                    const outLine = JSON.stringify(msg);
+                    if (upstreamConnected) {
+                        upstream.write(outLine + '\n');
+                    } else {
+                        if (sendQueue.length >= MAX_QUEUED) { teardown(); return; }
+                        sendQueue.push(outLine);
+                    }
                 }
             } catch (e) {
                 console.error('[mining] proxy miner->pool handler error', e?.message);

@@ -5,10 +5,15 @@ import { startStratumProxy, stopStratumProxy } from '../src/services/mining/stra
 import { _getAccrual } from '../src/services/mining/accounting.js';
 
 // A minimal fake KawPow/stratum pool: replies to subscribe/authorize/submit
-// the way a real HeroMiners RVN pool would, and remembers the username it
-// was authorized with so the test can assert the wallet swap happened.
-function startFakePool() {
+// the way a real HeroMiners RVN pool would, and remembers (a) the username
+// it was authorized with (so the test can assert the wallet swap happened)
+// and (b) every request id it actually received (so the test can assert
+// the proxy rewrote miner-controlled ids to its own, rather than relaying
+// them verbatim). `rejectSubmitJobIds` lets a test make specific submits
+// come back rejected, the way a stale/invalid share would.
+function startFakePool({ rejectSubmitJobIds = new Set() } = {}) {
     const authorizedUsernames = [];
+    const receivedIds = [];
     const server = net.createServer((sock) => {
         let buf = '';
         sock.on('data', (chunk) => {
@@ -20,6 +25,7 @@ function startFakePool() {
                 if (!line) continue;
                 let msg;
                 try { msg = JSON.parse(line); } catch { continue; }
+                receivedIds.push(msg.id);
 
                 if (msg.method === 'mining.subscribe') {
                     sock.write(JSON.stringify({ id: msg.id, result: [[], '', 4], error: null }) + '\n');
@@ -28,12 +34,18 @@ function startFakePool() {
                     authorizedUsernames.push(msg.params?.[0]);
                     sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
                 } else if (msg.method === 'mining.submit') {
-                    sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
+                    const jobId = msg.params?.[1];
+                    const accept = !rejectSubmitJobIds.has(jobId);
+                    sock.write(JSON.stringify({
+                        id: msg.id,
+                        result: accept,
+                        error: accept ? null : [21, 'Job not found', null],
+                    }) + '\n');
                 }
             }
         });
     });
-    return { server, authorizedUsernames };
+    return { server, authorizedUsernames, receivedIds };
 }
 
 function listen(server, port) {
@@ -43,10 +55,50 @@ function listen(server, port) {
     });
 }
 
-test('proxy relays subscribe/authorize/submit to a real pool, swaps the wallet, and credits an accepted share', async () => {
+// Drives a subscribe -> authorize -> (one or more) submit sequence over a
+// connected client socket, resolving with every parsed message the miner
+// received, once `stopWhen(msg)` returns true.
+function driveMiner(client, { subscribeId, authorizeId, submits }, stopWhen) {
+    const received = [];
+    return new Promise((resolve, reject) => {
+        let buf = '';
+        let submitIdx = 0;
+        client.on('data', (chunk) => {
+            buf += chunk.toString('utf8');
+            let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim();
+                buf = buf.slice(nl + 1);
+                if (!line) continue;
+                const msg = JSON.parse(line);
+                received.push(msg);
+
+                if (msg.id === subscribeId && Array.isArray(msg.result)) {
+                    client.write(JSON.stringify({ id: authorizeId, method: 'mining.authorize', params: ['tok.rvn', 'x'] }) + '\n');
+                } else if (msg.id === authorizeId && msg.result === true && submitIdx < submits.length) {
+                    const s = submits[submitIdx];
+                    client.write(JSON.stringify({ id: s.id, method: 'mining.submit', params: ['tok.rvn', s.jobId, '0', '0', '0'] }) + '\n');
+                } else if (submits.some((s) => s.id === msg.id) && msg.id !== authorizeId) {
+                    submitIdx += 1;
+                    if (submitIdx < submits.length) {
+                        const s = submits[submitIdx];
+                        client.write(JSON.stringify({ id: s.id, method: 'mining.submit', params: ['tok.rvn', s.jobId, '0', '0', '0'] }) + '\n');
+                    }
+                }
+
+                if (stopWhen(msg, received)) { resolve(received); return; }
+            }
+        });
+        client.on('error', reject);
+        client.write(JSON.stringify({ id: subscribeId, method: 'mining.subscribe', params: [] }) + '\n');
+        setTimeout(() => reject(new Error('timeout waiting for expected message')), 3000);
+    });
+}
+
+test('proxy relays subscribe/authorize/submit to a real pool, swaps the wallet, rewrites ids, and credits an accepted share exactly once', async () => {
     const POOL_PORT = 39501;
     const PROXY_PORT = 39502;
-    const { server: pool, authorizedUsernames } = startFakePool();
+    const { server: pool, authorizedUsernames, receivedIds } = startFakePool();
     let proxy;
     let client;
     try {
@@ -57,17 +109,117 @@ test('proxy relays subscribe/authorize/submit to a real pool, swaps the wallet, 
             rvn: { poolUrl: `127.0.0.1:${POOL_PORT}`, wallet: 'RVNWALLET' },
             xmr: { poolUrl: '' },
         };
-        proxy = startStratumProxy({
-            port: PROXY_PORT,
-            cfg,
-            resolveToken: async () => 'user-abc',
-        });
+        proxy = startStratumProxy({ port: PROXY_PORT, cfg, resolveToken: async () => 'user-abc' });
 
-        const received = [];
+        // Deliberately large, non-sequential miner-chosen ids — distinct
+        // from anything a proxy-assigned monotonic counter (1, 2, 3, ...)
+        // would ever produce — so we can prove the proxy is NOT relaying
+        // the miner's own ids upstream.
+        client = net.connect(PROXY_PORT, '127.0.0.1');
+        const received = await driveMiner(
+            client,
+            { subscribeId: 9001, authorizeId: 9002, submits: [{ id: 9003, jobId: 'job1' }] },
+            (msg) => msg.id === 9003,
+        );
+
+        // 1. the fake pool received the wallet-substituted username, not the raw token.
+        assert.equal(authorizedUsernames.length, 1);
+        assert.ok(authorizedUsernames[0].startsWith('RVNWALLET.'), `expected wallet-prefixed username, got ${authorizedUsernames[0]}`);
+
+        // Proof of id rewriting: the pool never saw the miner's chosen ids ...
+        assert.ok(!receivedIds.includes(9001) && !receivedIds.includes(9002) && !receivedIds.includes(9003),
+            `pool must never see miner-chosen ids, got ${JSON.stringify(receivedIds)}`);
+        // ... it saw a proxy-assigned monotonic sequence instead.
+        assert.deepEqual(receivedIds, [1, 2, 3]);
+        // ... yet the miner still gets back its OWN ids (rewritten on the way out).
+        assert.ok(received.some((m) => m.id === 9001 && Array.isArray(m.result)), 'subscribe response used the miner id');
+        assert.ok(received.some((m) => m.id === 9002 && m.result === true), 'authorize response used the miner id');
+        assert.ok(received.some((m) => m.id === 9003 && m.result === true), 'submit response used the miner id');
+
+        // 2. the accepted submit was credited exactly once, at the set difficulty.
+        await new Promise((r) => setTimeout(r, 50));
+        const a = _getAccrual().get('user-abc');
+        assert.ok(a, 'accrual entry exists for user-abc');
+        assert.equal(a.diffByCoin.rvn, 1000);
+
+        // 3. the miner received the pool's subscribe result and set_difficulty (relay works both ways).
+        const setDiff = received.find((m) => m.method === 'mining.set_difficulty');
+        assert.ok(setDiff && setDiff.params[0] === 1000);
+    } finally {
+        client?.destroy();
+        await stopStratumProxy(proxy);
+        await new Promise((r) => pool.close(r));
+    }
+});
+
+test('a rejected submit records no accrual', async () => {
+    const POOL_PORT = 39505;
+    const PROXY_PORT = 39506;
+    const { server: pool } = startFakePool({ rejectSubmitJobIds: new Set(['badjob']) });
+    let proxy;
+    let client;
+    try {
+        await listen(pool, POOL_PORT);
+        _getAccrual().clear();
+
+        const cfg = {
+            rvn: { poolUrl: `127.0.0.1:${POOL_PORT}`, wallet: 'RVNWALLET' },
+            xmr: { poolUrl: '' },
+        };
+        proxy = startStratumProxy({ port: PROXY_PORT, cfg, resolveToken: async () => 'user-rej' });
+
+        client = net.connect(PROXY_PORT, '127.0.0.1');
+        await driveMiner(
+            client,
+            { subscribeId: 1, authorizeId: 2, submits: [{ id: 3, jobId: 'badjob' }] },
+            (msg) => msg.id === 3,
+        );
+
+        await new Promise((r) => setTimeout(r, 50));
+        assert.equal(_getAccrual().get('user-rej'), undefined, 'a rejected submit must not accrue anything');
+    } finally {
+        client?.destroy();
+        await stopStratumProxy(proxy);
+        await new Promise((r) => pool.close(r));
+    }
+});
+
+test('reusing a miner-chosen id after a rejected submit cannot forge a credit', async () => {
+    // This is the exploit the id-rewriting defends against: the OLD
+    // implementation keyed acceptance on "a message with this miner id came
+    // back with result:true", so a miner could submit a bogus/rejected
+    // share, then send an unrelated request reusing THE SAME id (anything
+    // the pool answers with result:true, e.g. a second authorize) and get
+    // credited for a share it never actually got accepted.
+    const POOL_PORT = 39507;
+    const PROXY_PORT = 39508;
+    const { server: pool } = startFakePool({ rejectSubmitJobIds: new Set(['badjob']) });
+    let proxy;
+    let client;
+    try {
+        await listen(pool, POOL_PORT);
+        _getAccrual().clear();
+
+        const cfg = {
+            rvn: { poolUrl: `127.0.0.1:${POOL_PORT}`, wallet: 'RVNWALLET' },
+            xmr: { poolUrl: '' },
+        };
+        proxy = startStratumProxy({ port: PROXY_PORT, cfg, resolveToken: async () => 'user-exploit' });
+
+        const REUSED_ID = 777;
+        client = net.connect(PROXY_PORT, '127.0.0.1');
+        const received = await driveMiner(
+            client,
+            { subscribeId: 1, authorizeId: 2, submits: [{ id: REUSED_ID, jobId: 'badjob' }] },
+            (msg) => msg.id === REUSED_ID,
+        );
+        // Confirm the submit really was rejected before attempting the reuse.
+        const submitResp = received.find((m) => m.id === REUSED_ID);
+        assert.equal(submitResp.result, false);
+
+        // Now reuse the SAME miner id on an unrelated request (an
+        // authorize) the pool will happily answer with result:true.
         await new Promise((resolve, reject) => {
-            client = net.connect(PROXY_PORT, '127.0.0.1', () => {
-                client.write(JSON.stringify({ id: 1, method: 'mining.subscribe', params: [] }) + '\n');
-            });
             let buf = '';
             client.on('data', (chunk) => {
                 buf += chunk.toString('utf8');
@@ -77,38 +229,46 @@ test('proxy relays subscribe/authorize/submit to a real pool, swaps the wallet, 
                     buf = buf.slice(nl + 1);
                     if (!line) continue;
                     const msg = JSON.parse(line);
-                    received.push(msg);
-
-                    if (msg.result && Array.isArray(msg.result) && msg.id === 1) {
-                        // subscribe result arrived — now authorize.
-                        client.write(JSON.stringify({ id: 2, method: 'mining.authorize', params: ['tok.rvn', 'x'] }) + '\n');
-                    } else if (msg.id === 2 && msg.result === true) {
-                        // authorized — now submit a share.
-                        client.write(JSON.stringify({ id: 3, method: 'mining.submit', params: ['tok.rvn', 'job1', '0', '0', '0'] }) + '\n');
-                    } else if (msg.id === 3 && msg.result === true) {
-                        resolve();
-                    }
+                    if (msg.id === REUSED_ID && msg.result === true) { resolve(); return; }
                 }
             });
+            client.write(JSON.stringify({ id: REUSED_ID, method: 'mining.authorize', params: ['tok.rvn', 'x'] }) + '\n');
             client.on('error', reject);
-            setTimeout(() => reject(new Error('timeout')), 3000);
+            setTimeout(() => reject(new Error('timeout waiting for reused-id authorize response')), 3000);
         });
 
-        // 1. the fake pool received the wallet-substituted username, not the raw token.
-        assert.equal(authorizedUsernames.length, 1);
-        assert.ok(authorizedUsernames[0].startsWith('RVNWALLET.'), `expected wallet-prefixed username, got ${authorizedUsernames[0]}`);
-
-        // 2. the accepted submit was credited at the set difficulty.
         await new Promise((r) => setTimeout(r, 50));
-        const a = _getAccrual().get('user-abc');
-        assert.ok(a, 'accrual entry exists for user-abc');
-        assert.equal(a.diffByCoin.rvn, 1000);
+        assert.equal(_getAccrual().get('user-exploit'), undefined, 'reusing a miner id must never forge a credit');
+    } finally {
+        client?.destroy();
+        await stopStratumProxy(proxy);
+        await new Promise((r) => pool.close(r));
+    }
+});
 
-        // 3. the miner received the pool's subscribe result and set_difficulty (relay works both ways).
-        const subscribeResult = received.find((m) => m.id === 1);
-        assert.ok(subscribeResult && Array.isArray(subscribeResult.result));
-        const setDiff = received.find((m) => m.method === 'mining.set_difficulty');
-        assert.ok(setDiff && setDiff.params[0] === 1000);
+test('a line with no newline that exceeds the buffer cap destroys the connection', async () => {
+    const POOL_PORT = 39509;
+    const PROXY_PORT = 39510;
+    const { server: pool } = startFakePool();
+    let proxy;
+    let client;
+    try {
+        await listen(pool, POOL_PORT);
+        const cfg = {
+            rvn: { poolUrl: `127.0.0.1:${POOL_PORT}`, wallet: 'RVNWALLET' },
+            xmr: { poolUrl: '' },
+        };
+        proxy = startStratumProxy({ port: PROXY_PORT, cfg, resolveToken: async () => 'user-abc' });
+
+        await new Promise((resolve, reject) => {
+            client = net.connect(PROXY_PORT, '127.0.0.1', () => {
+                client.write('{'.repeat(70 * 1024)); // > MAX_LINE, never terminated
+            });
+            client.resume();
+            client.on('close', resolve);
+            client.on('error', resolve);
+            setTimeout(() => reject(new Error('timeout: oversized unterminated line did not destroy the socket')), 3000);
+        });
     } finally {
         client?.destroy();
         await stopStratumProxy(proxy);
