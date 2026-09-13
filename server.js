@@ -80,22 +80,14 @@ app.get('*', (req, res) => {
 
 app.use(errorMiddleware);
 
-// Importing this module (e.g. from a test file) must never bind a real
-// port or open a second DB connection — only `node server.js` does that.
-const isMainModule = process.argv[1] === __filename;
-
-if (isMainModule) {
-    app.listen(PORT, "0.0.0.0", async () => {
-        console.log(`✅ Server running on port ${PORT}`);
-
-        await connectToDatabase();
-    });
-
-    // Mining: the stratum proxy + payout loop run with the main server only.
-    // The proxy binds a raw, unauthenticated TCP port arcjet does not cover, so
-    // it stays off until a real pool is configured and MINING_PROXY_ENABLED=1
-    // is explicitly set — an unauthenticated flood of login lines otherwise
-    // hits the DB with no cap.
+// Mining: the stratum proxy + payout loop. Exported so BOTH entrypoints start
+// them — `node server.js` (dev, via the isMainModule block below) AND
+// `start.js` (prod, run by pm2). start.js imports server.js so this module is
+// NOT the main module there; leaving the startup only in the isMainModule
+// block meant the proxy never started under pm2. The proxy binds a raw,
+// unauthenticated TCP port arcjet does not cover, so it stays off until a real
+// pool is configured and MINING_PROXY_ENABLED=1 is explicitly set.
+export function startMiningServices() {
     if (miningConfig().proxyEnabled) {
         import('./backend/src/services/mining/stratumProxy.js').then(({ startStratumProxy }) => {
             startStratumProxy();
@@ -107,6 +99,19 @@ if (isMainModule) {
     import('./backend/src/services/mining/accounting.js').then(({ startPayoutLoop }) => {
         startPayoutLoop({ intervalMs: 60_000 });
     }).catch((err) => console.error('❌ Mining payout loop failed to start', err));
+}
+
+// Importing this module (e.g. from a test file) must never bind a real
+// port or open a second DB connection — only `node server.js` does that.
+const isMainModule = process.argv[1] === __filename;
+
+if (isMainModule) {
+    app.listen(PORT, "0.0.0.0", async () => {
+        console.log(`✅ Server running on port ${PORT}`);
+
+        await connectToDatabase();
+    });
+    startMiningServices();
 }
 
 export default app;

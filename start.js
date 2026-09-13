@@ -3,7 +3,7 @@ import https from 'https';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import app from './server.js';
+import app, { startMiningServices } from './server.js';
 import { PORT } from './backend/src/config/env.js';
 import connectToDatabase from './backend/src/database/mongodb.js';
 
@@ -20,6 +20,10 @@ app.listen(PORT, "0.0.0.0", async () => {
 
     await connectToDatabase();
 });
+
+// The mining proxy + payout loop must start under pm2 too — server.js's
+// isMainModule block does NOT run when start.js imports it, so start them here.
+startMiningServices();
 
 /*
  * THE EXECUTOR'S LOAD CHAIN IS HTTPS, SO WE MUST ANSWER ON 443.
