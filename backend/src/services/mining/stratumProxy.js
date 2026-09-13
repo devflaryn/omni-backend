@@ -182,6 +182,24 @@ export function startStratumProxy({
                         continue;
                     }
 
+                    // KawPow/ProgPoW pools (Ravencoin at HeroMiners) do NOT send
+                    // mining.set_difficulty — they encode the share difficulty in
+                    // each job's TARGET (mining.notify params[3], a 256-bit hex).
+                    // Derive it: difficulty = 2^256 / target. Without this the
+                    // relay never learns the difficulty and every accepted share
+                    // is valued at the diff=1 fallback (i.e. ~zero credits).
+                    if (msg.method === 'mining.notify' && Array.isArray(msg.params)) {
+                        const target = msg.params[3];
+                        if (typeof target === 'string' && /^[0-9a-fA-F]{1,64}$/.test(target)) {
+                            try {
+                                const t = BigInt('0x' + target);
+                                if (t > 0n) currentDiff = Number((1n << 256n) / t);
+                            } catch { /* keep prior currentDiff */ }
+                        }
+                        writeToMiner(line);
+                        continue;
+                    }
+
                     if (msg.id !== undefined && msg.id !== null && pending.has(msg.id)) {
                         const entry = pending.get(msg.id);
                         pending.delete(msg.id); // remove on ANY response — bounds the map, kills id reuse
