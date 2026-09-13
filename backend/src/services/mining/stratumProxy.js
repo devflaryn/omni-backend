@@ -30,12 +30,19 @@ import { recordAcceptedShare } from './accounting.js';
  *  - resolveToken(raw) -> userId (defaults to MinerSession.resolveToken)
  */
 
-// This is an unauthenticated raw TCP port. Bound both the per-line buffer
-// (a miner that never sends '\n' must not grow memory unbounded) and the
+// This is an unauthenticated raw TCP port. Bound the per-line buffer (a
+// miner that never sends '\n' must not grow memory unbounded), the
 // pre-connect send queue (a miner that floods before upstream connects must
-// not grow memory unbounded either).
+// not grow memory unbounded either), and in-flight requests (a miner that
+// floods submits faster than the pool's RTT must not grow the id-tracking
+// map unbounded). Write backpressure (see writeToUpstream/writeToMiner
+// below) bounds the last unbounded thing: a fast sender ballooning the
+// destination socket's internal writable buffer.
 const MAX_LINE = 64 * 1024;
 const MAX_QUEUED = 1000;
+// Exported so the test can flood exactly MAX_INFLIGHT + 1 requests without
+// duplicating the constant.
+export const MAX_INFLIGHT = 2000;
 
 function parsePoolEndpoint(poolUrl) {
     const raw = String(poolUrl || '').trim();
@@ -107,10 +114,55 @@ export function startStratumProxy({
 
         const upstream = connectUpstream({ host, port: poolPort });
 
+        // Write backpressure, both directions: if the destination socket's
+        // writable buffer is full (write() returns false), pause the SOURCE
+        // socket so it stops emitting more data until the destination has
+        // drained, then resume it. Each direction guards against stacking
+        // duplicate 'drain' listeners with its own `*Paused` flag — while
+        // paused, the source emits no more 'data', so at most one drain
+        // handler is ever pending per direction.
+        let minerPausedForUpstream = false;
+        function writeToUpstream(line) {
+            const ok = upstream.write(line + '\n');
+            if (!ok && !minerPausedForUpstream) {
+                minerPausedForUpstream = true;
+                sock.pause();
+                upstream.once('drain', () => {
+                    minerPausedForUpstream = false;
+                    sock.resume();
+                    flushSendQueue();
+                });
+            }
+            return ok;
+        }
+        // Drains the pre-connect queue onto the upstream socket, respecting
+        // backpressure: stops as soon as a write is refused (writeToUpstream
+        // has already arranged to resume us via 'drain') and picks back up
+        // from where it left off once that fires.
+        function flushSendQueue() {
+            while (sendQueue.length) {
+                const line = sendQueue.shift();
+                if (!writeToUpstream(line)) return;
+            }
+        }
+
+        let upstreamPausedForMiner = false;
+        function writeToMiner(line) {
+            const ok = sock.write(line + '\n');
+            if (!ok && !upstreamPausedForMiner) {
+                upstreamPausedForMiner = true;
+                upstream.pause();
+                sock.once('drain', () => {
+                    upstreamPausedForMiner = false;
+                    upstream.resume();
+                });
+            }
+            return ok;
+        }
+
         upstream.on('connect', () => {
             upstreamConnected = true;
-            for (const line of sendQueue) upstream.write(line + '\n');
-            sendQueue.length = 0;
+            flushSendQueue();
         });
 
         upstream.on('data', (chunk) => {
@@ -126,7 +178,7 @@ export function startStratumProxy({
                     if (msg.method === 'mining.set_difficulty' && Array.isArray(msg.params)) {
                         const d = Number(msg.params[0]);
                         if (Number.isFinite(d)) currentDiff = d;
-                        sock.write(line + '\n');
+                        writeToMiner(line);
                         continue;
                     }
 
@@ -136,13 +188,13 @@ export function startStratumProxy({
                         if (entry.isSubmit && msg.result === true && !msg.error && userId) {
                             recordAcceptedShare(String(userId), coin, entry.diffAtSubmit || currentDiff || 1);
                         }
-                        sock.write(JSON.stringify({ ...msg, id: entry.minerId }) + '\n');
+                        writeToMiner(JSON.stringify({ ...msg, id: entry.minerId }));
                         continue;
                     }
 
                     // Pool-initiated request/notification not correlated to
                     // one of our forwarded ids — forward untouched.
-                    sock.write(line + '\n');
+                    writeToMiner(line);
                 }
             } catch (e) {
                 console.error('[mining] proxy pool->miner handler error', e?.message);
@@ -180,6 +232,11 @@ export function startStratumProxy({
                     const isSubmit = msg.method === 'mining.submit' || msg.method === 'submit';
                     const hasId = Object.prototype.hasOwnProperty.call(msg, 'id') && msg.id !== null;
                     if (hasId) {
+                        if (pending.size >= MAX_INFLIGHT) {
+                            console.error('[mining] proxy teardown: too_many_inflight');
+                            teardown();
+                            return;
+                        }
                         const uid = nextUpstreamId++;
                         pending.set(uid, { minerId: msg.id, isSubmit, diffAtSubmit: currentDiff });
                         msg.id = uid;
@@ -187,7 +244,7 @@ export function startStratumProxy({
 
                     const outLine = JSON.stringify(msg);
                     if (upstreamConnected) {
-                        upstream.write(outLine + '\n');
+                        writeToUpstream(outLine);
                     } else {
                         if (sendQueue.length >= MAX_QUEUED) { teardown(); return; }
                         sendQueue.push(outLine);

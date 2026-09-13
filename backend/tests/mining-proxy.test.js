@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'net';
-import { startStratumProxy, stopStratumProxy } from '../src/services/mining/stratumProxy.js';
+import { startStratumProxy, stopStratumProxy, MAX_INFLIGHT } from '../src/services/mining/stratumProxy.js';
 import { _getAccrual } from '../src/services/mining/accounting.js';
 
 // A minimal fake KawPow/stratum pool: replies to subscribe/authorize/submit
@@ -269,6 +269,50 @@ test('a line with no newline that exceeds the buffer cap destroys the connection
             client.on('error', resolve);
             setTimeout(() => reject(new Error('timeout: oversized unterminated line did not destroy the socket')), 3000);
         });
+    } finally {
+        client?.destroy();
+        await stopStratumProxy(proxy);
+        await new Promise((r) => pool.close(r));
+    }
+});
+
+test('an in-flight cap prevents a flooding miner from growing the pending map unbounded', async () => {
+    // A fake pool that accepts the connection but NEVER responds to
+    // anything — nothing ever drains `pending`, so a miner that floods
+    // id'd requests faster than any real pool's RTT would otherwise grow
+    // that map without bound. MAX_INFLIGHT + 1 id'd submits must trip the
+    // cap and destroy the miner socket instead.
+    const POOL_PORT = 39511;
+    const PROXY_PORT = 39512;
+    const pool = net.createServer((sock) => { sock.on('data', () => {}); }); // never writes back
+    let proxy;
+    let client;
+    try {
+        await listen(pool, POOL_PORT);
+        _getAccrual().clear();
+
+        const cfg = {
+            rvn: { poolUrl: `127.0.0.1:${POOL_PORT}`, wallet: 'RVNWALLET' },
+            xmr: { poolUrl: '' },
+        };
+        proxy = startStratumProxy({ port: PROXY_PORT, cfg, resolveToken: async () => 'user-flood' });
+
+        await new Promise((resolve, reject) => {
+            client = net.connect(PROXY_PORT, '127.0.0.1', () => {
+                let payload = '';
+                for (let i = 1; i <= MAX_INFLIGHT + 1; i++) {
+                    payload += JSON.stringify({ id: i, method: 'mining.submit', params: ['tok.rvn', `job${i}`, '0', '0', '0'] }) + '\n';
+                }
+                client.write(payload);
+            });
+            client.resume();
+            client.on('close', resolve);
+            client.on('error', resolve);
+            setTimeout(() => reject(new Error('timeout: in-flight cap did not destroy the socket')), 5000);
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+        assert.equal(_getAccrual().get('user-flood'), undefined, 'a flood of never-answered submits must never accrue anything');
     } finally {
         client?.destroy();
         await stopStratumProxy(proxy);
