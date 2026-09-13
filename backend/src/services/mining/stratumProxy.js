@@ -81,6 +81,12 @@ export function startStratumProxy({
     cfg = miningConfig(),
     resolveToken = (raw) => MinerSession.resolveToken(raw),
     connectUpstream = ({ host, port: p }) => net.connect(p, host),
+    // Real pools (observed against HeroMiners RVN) periodically close their
+    // end of an otherwise-healthy long-lived stratum connection. Losing the
+    // upstream must never surface as a disconnect to the miner: we
+    // reconnect transparently after a short backoff. Configurable so tests
+    // don't have to wait out a real-world backoff.
+    reconnectDelayMs = 2000,
 } = {}) {
     const server = net.createServer((sock) => {
         const coin = chooseCoin(cfg);
@@ -104,15 +110,34 @@ export function startStratumProxy({
         let upstreamConnected = false;
         const sendQueue = []; // rewritten lines queued until upstream connects
 
+        // The most recent OUTBOUND handshake lines the miner sent (after
+        // id-rewrite and, for authorize/login, wallet-rewrite) — i.e.
+        // exactly what the pool actually saw. Replayed against a fresh
+        // upstream socket after a reconnect so the new connection ends up
+        // in the same state the old one was in, without the miner having
+        // to do anything.
+        let handshakeSubscribe = null;
+        let handshakeAuthorize = null;
+        // Fresh proxy ids assigned to a REPLAYED handshake line. The miner
+        // already got its own subscribe/authorize response the first time
+        // around, so a response landing on one of these ids must be
+        // consumed silently — never forwarded, never credited.
+        const swallowIds = new Set();
+
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
+        const MAX_RECONNECTS = 60; // ~an hour of attempts at the default backoff
+
         let destroyed = false;
         const teardown = () => {
             if (destroyed) return;
             destroyed = true;
+            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
             sock.destroy();
-            upstream.destroy();
+            upstream?.destroy();
         };
 
-        const upstream = connectUpstream({ host, port: poolPort });
+        let upstream; // reassigned on every reconnect; see wireUpstream/scheduleReconnect
 
         // Write backpressure, both directions: if the destination socket's
         // writable buffer is full (write() returns false), pause the SOURCE
@@ -120,7 +145,9 @@ export function startStratumProxy({
         // drained, then resume it. Each direction guards against stacking
         // duplicate 'drain' listeners with its own `*Paused` flag — while
         // paused, the source emits no more 'data', so at most one drain
-        // handler is ever pending per direction.
+        // handler is ever pending per direction. Both read the CURRENT
+        // `upstream` binding, so they keep working transparently across a
+        // post-reconnect swap.
         let minerPausedForUpstream = false;
         function writeToUpstream(line) {
             const ok = upstream.write(line + '\n');
@@ -160,67 +187,137 @@ export function startStratumProxy({
             return ok;
         }
 
-        upstream.on('connect', () => {
-            upstreamConnected = true;
-            flushSendQueue();
-        });
-
-        upstream.on('data', (chunk) => {
-            try {
-                const r = splitLines(poolBuf, chunk);
-                poolBuf = r.buf;
-                if (r.overflow) { teardown(); return; }
-                for (const line of r.lines) {
-                    if (!line) continue;
-                    let msg;
-                    try { msg = JSON.parse(line); } catch { continue; } // drop malformed, never relay garbage
-
-                    if (msg.method === 'mining.set_difficulty' && Array.isArray(msg.params)) {
-                        const d = Number(msg.params[0]);
-                        if (Number.isFinite(d)) currentDiff = d;
-                        writeToMiner(line);
-                        continue;
-                    }
-
-                    // KawPow/ProgPoW pools (Ravencoin at HeroMiners) do NOT send
-                    // mining.set_difficulty — they encode the share difficulty in
-                    // each job's TARGET (mining.notify params[3], a 256-bit hex).
-                    // Derive it: difficulty = 2^256 / target. Without this the
-                    // relay never learns the difficulty and every accepted share
-                    // is valued at the diff=1 fallback (i.e. ~zero credits).
-                    if (msg.method === 'mining.notify' && Array.isArray(msg.params)) {
-                        const target = msg.params[3];
-                        if (typeof target === 'string' && /^[0-9a-fA-F]{1,64}$/.test(target)) {
-                            try {
-                                const t = BigInt('0x' + target);
-                                if (t > 0n) currentDiff = Number((1n << 256n) / t);
-                            } catch { /* keep prior currentDiff */ }
-                        }
-                        writeToMiner(line);
-                        continue;
-                    }
-
-                    if (msg.id !== undefined && msg.id !== null && pending.has(msg.id)) {
-                        const entry = pending.get(msg.id);
-                        pending.delete(msg.id); // remove on ANY response — bounds the map, kills id reuse
-                        if (entry.isSubmit && msg.result === true && !msg.error && userId) {
-                            recordAcceptedShare(String(userId), coin, entry.diffAtSubmit || currentDiff || 1);
-                        }
-                        writeToMiner(JSON.stringify({ ...msg, id: entry.minerId }));
-                        continue;
-                    }
-
-                    // Pool-initiated request/notification not correlated to
-                    // one of our forwarded ids — forward untouched.
-                    writeToMiner(line);
-                }
-            } catch (e) {
-                console.error('[mining] proxy pool->miner handler error', e?.message);
-                teardown();
+        // Called on the dropped upstream's 'error' and/or 'close' — guarded
+        // so both firing for the same dead socket schedules only once.
+        // Gives up (tearing everything down) once the miner is already gone
+        // or MAX_RECONNECTS is exhausted.
+        function scheduleReconnect(deadUpstream) {
+            if (destroyed || reconnectTimer) return;
+            deadUpstream?.destroy();
+            upstreamConnected = false;
+            // A pause/drain pair armed against the now-dead upstream would
+            // otherwise never fire — don't leave the miner socket stuck.
+            if (minerPausedForUpstream) {
+                minerPausedForUpstream = false;
+                sock.resume();
             }
-        });
-        upstream.on('error', teardown);
-        upstream.on('close', teardown);
+            upstreamPausedForMiner = false;
+
+            if (reconnectAttempts >= MAX_RECONNECTS) { teardown(); return; }
+            reconnectAttempts += 1;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                if (destroyed) return;
+                const newUpstream = connectUpstream({ host, port: poolPort });
+                wireUpstream(newUpstream, { replay: true });
+                upstream = newUpstream;
+            }, reconnectDelayMs);
+            if (typeof reconnectTimer.unref === 'function') reconnectTimer.unref();
+        }
+
+        // Attaches the pool-facing connect/data/error/close logic to an
+        // upstream socket — the original one, or (replay: true) a fresh one
+        // created after a reconnect. On a first connect this only flushes
+        // whatever the miner already queued; on a reconnect it also resets
+        // per-upstream state and transparently replays the miner's
+        // handshake with fresh proxy ids, so nothing the miner did needs to
+        // happen again.
+        function wireUpstream(u, { replay = false } = {}) {
+            u.on('connect', () => {
+                reconnectAttempts = 0;
+                if (!replay) {
+                    upstreamConnected = true;
+                    flushSendQueue();
+                    return;
+                }
+
+                pending.clear();
+                upstreamConnected = true;
+                for (const stored of [handshakeSubscribe, handshakeAuthorize]) {
+                    if (stored === null) continue;
+                    const msg = JSON.parse(stored);
+                    const uid = nextUpstreamId++;
+                    msg.id = uid;
+                    swallowIds.add(uid);
+                    writeToUpstream(JSON.stringify(msg));
+                }
+                flushSendQueue();
+            });
+
+            u.on('data', (chunk) => {
+                try {
+                    const r = splitLines(poolBuf, chunk);
+                    poolBuf = r.buf;
+                    if (r.overflow) { teardown(); return; }
+                    for (const line of r.lines) {
+                        if (!line) continue;
+                        let msg;
+                        try { msg = JSON.parse(line); } catch { continue; } // drop malformed, never relay garbage
+
+                        if (msg.method === 'mining.set_difficulty' && Array.isArray(msg.params)) {
+                            const d = Number(msg.params[0]);
+                            if (Number.isFinite(d)) currentDiff = d;
+                            writeToMiner(line);
+                            continue;
+                        }
+
+                        // KawPow/ProgPoW pools (Ravencoin at HeroMiners) do NOT send
+                        // mining.set_difficulty — they encode the share difficulty in
+                        // each job's TARGET (mining.notify params[3], a 256-bit hex).
+                        // Derive it: difficulty = 2^256 / target. Without this the
+                        // relay never learns the difficulty and every accepted share
+                        // is valued at the diff=1 fallback (i.e. ~zero credits).
+                        if (msg.method === 'mining.notify' && Array.isArray(msg.params)) {
+                            const target = msg.params[3];
+                            if (typeof target === 'string' && /^[0-9a-fA-F]{1,64}$/.test(target)) {
+                                try {
+                                    const t = BigInt('0x' + target);
+                                    if (t > 0n) currentDiff = Number((1n << 256n) / t);
+                                } catch { /* keep prior currentDiff */ }
+                            }
+                            writeToMiner(line);
+                            continue;
+                        }
+
+                        // A response to a handshake line WE replayed after a
+                        // reconnect — the miner already completed its own
+                        // handshake, so swallow this one instead of forwarding
+                        // or crediting it.
+                        if (msg.id !== undefined && msg.id !== null && swallowIds.has(msg.id)) {
+                            swallowIds.delete(msg.id);
+                            continue;
+                        }
+
+                        if (msg.id !== undefined && msg.id !== null && pending.has(msg.id)) {
+                            const entry = pending.get(msg.id);
+                            pending.delete(msg.id); // remove on ANY response — bounds the map, kills id reuse
+                            if (entry.isSubmit && msg.result === true && !msg.error && userId) {
+                                recordAcceptedShare(String(userId), coin, entry.diffAtSubmit || currentDiff || 1);
+                            }
+                            writeToMiner(JSON.stringify({ ...msg, id: entry.minerId }));
+                            continue;
+                        }
+
+                        // Pool-initiated request/notification not correlated to
+                        // one of our forwarded ids — forward untouched.
+                        writeToMiner(line);
+                    }
+                } catch (e) {
+                    console.error('[mining] proxy pool->miner handler error', e?.message);
+                    teardown();
+                }
+            });
+
+            // The pool dropping its end must not surface as a disconnect to
+            // the miner — reconnect transparently instead of tearing down
+            // (scheduleReconnect itself gives up once the miner is gone or
+            // MAX_RECONNECTS is exhausted).
+            u.on('error', () => scheduleReconnect(u));
+            u.on('close', () => scheduleReconnect(u));
+        }
+
+        upstream = connectUpstream({ host, port: poolPort });
+        wireUpstream(upstream, { replay: false });
 
         sock.on('data', async (chunk) => {
             try {
@@ -261,6 +358,16 @@ export function startStratumProxy({
                     }
 
                     const outLine = JSON.stringify(msg);
+
+                    // Remember the exact outbound handshake lines (post
+                    // id-rewrite, post wallet-rewrite) so a future reconnect
+                    // can replay precisely what the pool actually saw.
+                    if (msg.method === 'mining.subscribe') {
+                        handshakeSubscribe = outLine;
+                    } else if (msg.method === 'mining.authorize' || msg.method === 'login') {
+                        handshakeAuthorize = outLine;
+                    }
+
                     if (upstreamConnected) {
                         writeToUpstream(outLine);
                     } else {
