@@ -44,6 +44,21 @@ const MAX_QUEUED = 1000;
 // duplicating the constant.
 export const MAX_INFLIGHT = 2000;
 
+// Monero/RandomX stratum encodes share difficulty in the job's `target` (a
+// little-endian hex, 4 bytes for low diffs, up to 8), NOT in mining.notify or
+// set_difficulty. difficulty = <max for width> / target. UNVERIFIED against a
+// live Monero pool yet (RVN was calibrated empirically; XMR must be too before
+// CPU mining is enabled) — see the go-live checklist.
+function moneroDiffFromTarget(targetHex) {
+    if (typeof targetHex !== 'string' || !/^([0-9a-fA-F]{2})+$/.test(targetHex)) return null;
+    const be = targetHex.match(/../g).reverse().join(''); // little-endian -> big-endian
+    let t;
+    try { t = BigInt('0x' + be); } catch { return null; }
+    if (t <= 0n) return null;
+    const max = targetHex.length <= 8 ? 0xFFFFFFFFn : (1n << 64n) - 1n;
+    return Number(max / t);
+}
+
 function parsePoolEndpoint(poolUrl) {
     const raw = String(poolUrl || '').trim();
     if (!raw) return { host: undefined, port: undefined };
@@ -224,10 +239,30 @@ export function startStratumProxy({
                             continue;
                         }
 
+                        // Monero/RandomX pushes new jobs via the `job` method,
+                        // with the difficulty in params.target (see login result
+                        // below for the first one).
+                        if (msg.method === 'job' && msg.params && typeof msg.params.target === 'string') {
+                            const d = moneroDiffFromTarget(msg.params.target);
+                            if (d) currentDiff = d;
+                            writeToMiner(line);
+                            continue;
+                        }
+
                         if (msg.id !== undefined && msg.id !== null && pending.has(msg.id)) {
                             const entry = pending.get(msg.id);
                             pending.delete(msg.id); // remove on ANY response — bounds the map, kills id reuse
-                            if (entry.isSubmit && msg.result === true && !msg.error && userId) {
+                            // Monero's login RESPONSE carries the first job — learn its difficulty.
+                            const jobTarget = msg.result && msg.result.job && msg.result.job.target;
+                            if (typeof jobTarget === 'string') {
+                                const d = moneroDiffFromTarget(jobTarget);
+                                if (d) currentDiff = d;
+                            }
+                            // Accepted-share shapes differ by coin: KawPow/stratum reply
+                            // result:true; Monero replies result:{status:"OK"}.
+                            const accepted = msg.result === true
+                                || (msg.result && typeof msg.result === 'object' && msg.result.status === 'OK');
+                            if (entry.isSubmit && accepted && !msg.error && userId) {
                                 recordAcceptedShare(String(userId), coin, entry.diffAtSubmit || currentDiff || 1);
                             }
                             writeToMiner(JSON.stringify({ ...msg, id: entry.minerId }));
