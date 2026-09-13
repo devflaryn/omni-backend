@@ -88,20 +88,31 @@ The local build + real-GPU run surfaced these (the point of testing first):
   + CUDA runtime in the `xmrig-win` artifact (then `--cuda` auto-detects NVIDIA;
   `--opencl` covers AMD). Verified a plain build only mines NVIDIA with an explicit
   `--opencl-platform=<idx>`, which is machine-specific — bundle CUDA instead.
-- **[TODO — robustness] Relay drops the miner when the pool cycles the upstream.**
-  HeroMiners closed the upstream ~every 80s; the relay tears down the miner, which
-  reconnects fresh (losing progress). Make the relay reconnect the upstream
-  transparently (keep the miner connected) so shares accumulate steadily.
-- **[TODO — blocker] Calibrate `RVN_USD_PER_DIFF`.** The placeholder `5e-8` values a
-  single ~1073M-diff share at ~$50. Real ~14 MH/s earns ~cents/day; the right value
-  is ~`1e-14`. Calibrate against realized HeroMiners earnings so granted credits ≈
-  80% of real value BEFORE enabling, or users get massively over/under-credited.
+- **[FIXED — the big one] Submit worker not rewritten → every share "Malformed PoW
+  result".** The relay rewrote the AUTHORIZE username to the wallet but left the
+  miner's own worker in each `mining.submit` params[0]; the pool ties a submit to the
+  connection's authorized worker, so it rejected all shares. Now params[0] is
+  rewritten to the wallet name. **Verified end-to-end 2026-09-13:** a real RTX 4060
+  share was accepted through the proxy (HeroMiners `accepted (1/0)`), credited 0.859
+  credits via the payout loop, and the wallet showed ~0.0162 RVN pending.
+- **[REVERTED — was wrong] Transparent upstream reconnect.** An attempt to reconnect
+  the pool connection transparently corrupted PoW: the pool issues a NEW extranonce
+  on reconnect and the miner was never told, so post-reconnect shares were malformed.
+  Reverted — the miner now re-handshakes on reconnect (fresh extranonce = valid
+  shares). If the pool's ~80s connection cycling proves disruptive at scale, the
+  correct fix is a `mining.set_extranonce`-aware reconnect, NOT a silent swap.
+- **[DONE] Calibrated `RVN_USD_PER_DIFF` ≈ 8.2e-14** (was `5e-8`, ~600,000× too high).
+  Derived from the real run: ~$7.0e-5 realized per 1073M-diff share. Config default
+  updated. RECALIBRATE periodically as RVN price/network difficulty move (ideally
+  from a longer run than 3 shares).
 
-Pipeline proven in pieces: relay relays real HeroMiners jobs (subscribe/authorize/
-notify, wallet substituted); the RTX 4060 mines KawPow through the proxy (~10–14
-MH/s); a direct run landed accepted shares; the credit path credits (smoke test
-0→24). A single continuous in-app accepted-share→credit run still needs the CUDA
-bundle + the reconnect fix to be reliable.
+**Pipeline PROVEN end-to-end (2026-09-13):** real RTX 4060 → local proxy (with the
+reconnect reverted + submit-worker fix + notify-target difficulty) → HeroMiners →
+share ACCEPTED → payout loop → credits granted; wallet shows pending RVN. The
+executor 1.0.41 build runs and shows the Earn tab. Remaining for user-facing
+go-live: the CUDA-bundle artifact (so the SHIPPED app mines on NVIDIA without the
+manual `--opencl-platform` flag), redeploy backend, publish executor 1.0.41, enable
+the proxy + port on the VPS.
 
 ## Still deferred (not blockers, note before scale)
 - `flushPayouts` has an in-process re-entrancy guard but no cross-process lock

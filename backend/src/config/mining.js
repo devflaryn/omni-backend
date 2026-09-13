@@ -11,10 +11,14 @@ export function miningConfig() {
         proxyEnabled: process.env.MINING_PROXY_ENABLED === '1',
         xmr: { poolUrl: process.env.XMR_POOL_URL || '', wallet: process.env.XMR_WALLET || '' },
         rvn: { poolUrl: process.env.RVN_POOL_URL || '', wallet: process.env.RVN_WALLET || '' },
-        // Per-coin valuation inputs (env-tunable; sane placeholders for tests).
+        // Per-coin USD value of one unit of accepted-share difficulty. RVN is
+        // calibrated (~8.2e-14) against a real HeroMiners run on 2026-09-13:
+        // ~$7.0e-5 realized per 1073M-diff share => usdPerDiff ~ 8.2e-14 (this
+        // credits 80% of realized value). RECALIBRATE periodically as RVN price
+        // and network difficulty move. XMR is a rough placeholder (CPU deferred).
         valuation: {
-            xmr: { usdPerDiff: Number(process.env.XMR_USD_PER_DIFF || 0.0000001) },
-            rvn: { usdPerDiff: Number(process.env.RVN_USD_PER_DIFF || 0.00000005) },
+            xmr: { usdPerDiff: Number(process.env.XMR_USD_PER_DIFF || 1e-13) },
+            rvn: { usdPerDiff: Number(process.env.RVN_USD_PER_DIFF || 8.2e-14) },
         },
     };
 }
