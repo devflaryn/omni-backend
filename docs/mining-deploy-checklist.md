@@ -69,6 +69,40 @@ custom-protocol`) and distribute it. The Earn tab is GPU-only during beta.
 - Security review confirmed: no credit-forgery path from an untrusted miner;
   DoS vectors bounded.
 
+## Local end-to-end findings (2026-09-13) — MUST address before go-live
+
+The local build + real-GPU run surfaced these (the point of testing first):
+
+- **[FIXED] `start.js` never started the proxy.** The proxy/payout startup was only
+  in `server.js`'s `isMainModule` block, which does not run under pm2 (pm2 runs
+  `start.js`). Extracted to `startMiningServices()`, called from both. **Prod was
+  deployed before this fix — redeploy before enabling mining.**
+- **[FIXED] Relay ignored KawPow difficulty.** HeroMiners sends no
+  `mining.set_difficulty`; difficulty is in the job target. Relay now derives it
+  (verified: matches xmrig's 1073M). Also needs redeploy. TODO: add a
+  notify-target unit test to `mining-proxy.test.js`.
+- **[TODO — blocker] Bundled miner must include the CUDA plugin for NVIDIA.** The
+  app's GPU args `--cuda --opencl` find NO backend on a plain build on NVIDIA
+  (`--cuda` disabled without the plugin; `--opencl` defaults to an AMD platform).
+  Symptom: "no active pools, stop mining". Fix = ship `xmrig.exe` + `xmrig-cuda.dll`
+  + CUDA runtime in the `xmrig-win` artifact (then `--cuda` auto-detects NVIDIA;
+  `--opencl` covers AMD). Verified a plain build only mines NVIDIA with an explicit
+  `--opencl-platform=<idx>`, which is machine-specific — bundle CUDA instead.
+- **[TODO — robustness] Relay drops the miner when the pool cycles the upstream.**
+  HeroMiners closed the upstream ~every 80s; the relay tears down the miner, which
+  reconnects fresh (losing progress). Make the relay reconnect the upstream
+  transparently (keep the miner connected) so shares accumulate steadily.
+- **[TODO — blocker] Calibrate `RVN_USD_PER_DIFF`.** The placeholder `5e-8` values a
+  single ~1073M-diff share at ~$50. Real ~14 MH/s earns ~cents/day; the right value
+  is ~`1e-14`. Calibrate against realized HeroMiners earnings so granted credits ≈
+  80% of real value BEFORE enabling, or users get massively over/under-credited.
+
+Pipeline proven in pieces: relay relays real HeroMiners jobs (subscribe/authorize/
+notify, wallet substituted); the RTX 4060 mines KawPow through the proxy (~10–14
+MH/s); a direct run landed accepted shares; the credit path credits (smoke test
+0→24). A single continuous in-app accepted-share→credit run still needs the CUDA
+bundle + the reconnect fix to be reliable.
+
 ## Still deferred (not blockers, note before scale)
 - `flushPayouts` has an in-process re-entrancy guard but no cross-process lock
   (fine for one backend instance).
