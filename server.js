@@ -28,6 +28,7 @@ import { createDistRouter } from "./backend/src/omni-exec/distApi.js";
 import checkoutRouter from "./backend/src/routes/checkout.routes.js";
 import { webhook as checkoutWebhook } from "./backend/src/controllers/checkout.controller.js";
 import miningRouter from "./backend/src/routes/mining.routes.js";
+import { miningConfig } from "./backend/src/config/mining.js";
 
 const app = express();
 
@@ -91,10 +92,18 @@ if (isMainModule) {
     });
 
     // Mining: the stratum proxy + payout loop run with the main server only.
-    import('./backend/src/services/mining/stratumProxy.js').then(({ startStratumProxy }) => {
-        startStratumProxy();
-        console.log('✅ Stratum proxy listening');
-    }).catch((err) => console.error('❌ Stratum proxy failed to start', err));
+    // The proxy binds a raw, unauthenticated TCP port arcjet does not cover, so
+    // it stays off until a real pool is configured and MINING_PROXY_ENABLED=1
+    // is explicitly set — an unauthenticated flood of login lines otherwise
+    // hits the DB with no cap.
+    if (miningConfig().proxyEnabled) {
+        import('./backend/src/services/mining/stratumProxy.js').then(({ startStratumProxy }) => {
+            startStratumProxy();
+            console.log('✅ Stratum proxy listening');
+        }).catch((err) => console.error('❌ Stratum proxy failed to start', err));
+    } else {
+        console.log('ℹ️ Stratum proxy disabled (set MINING_PROXY_ENABLED=1 to enable)');
+    }
     import('./backend/src/services/mining/accounting.js').then(({ startPayoutLoop }) => {
         startPayoutLoop({ intervalMs: 60_000 });
     }).catch((err) => console.error('❌ Mining payout loop failed to start', err));

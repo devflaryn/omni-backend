@@ -19,6 +19,12 @@ export function recordAcceptedShare(userId, coin, difficulty) {
 
 export function _getAccrual() { return accrual; }
 
+// Guards against two overlapping flushes double-paying the same accrual:
+// a second call that arrives while one is still awaiting a grant returns
+// immediately with no results instead of racing the first over the same
+// entries.
+let _flushing = false;
+
 /**
  * Convert accrued accepted-share difficulty into credits at MINING_PAYOUT_RATE,
  * grant to the PERMANENT bucket, and subtract only what was paid for.
@@ -32,34 +38,45 @@ export function _getAccrual() { return accrual; }
  * it outright. Any difficulty recorded during the await survives untouched.
  * The sub-micro remainder of the payout (gross * rate is rarely an integer)
  * is carried forward as `leftoverMicros` and added into the next flush.
+ *
+ * Also guarded against a SECOND overlapping call (e.g. the interval loop
+ * firing again before a slow flush finishes): `_flushing` makes a re-entrant
+ * call a no-op ([]) instead of two calls racing over the same entries and
+ * double-paying them.
  */
 export async function flushPayouts({ cfg = miningConfig(), grant = defaultGrant } = {}) {
-    const results = [];
-    for (const [userId, a] of accrual.entries()) {
-        const snap = { xmr: a.diffByCoin.xmr || 0, rvn: a.diffByCoin.rvn || 0 };
-        const leftover = a.leftoverMicros || 0;
-        const grossMicros = shareValueMicros('xmr', snap.xmr, cfg) + shareValueMicros('rvn', snap.rvn, cfg);
-        const payoutExact = grossMicros * MINING_PAYOUT_RATE + leftover;
-        const payMicros = Math.floor(payoutExact);
-        if (payMicros <= 0) { continue; } // entry left untouched, nothing to pay yet
+    if (_flushing) return []; // a flush is already in flight — do not double-pay
+    _flushing = true;
+    try {
+        const results = [];
+        for (const [userId, a] of accrual.entries()) {
+            const snap = { xmr: a.diffByCoin.xmr || 0, rvn: a.diffByCoin.rvn || 0 };
+            const leftover = a.leftoverMicros || 0;
+            const grossMicros = shareValueMicros('xmr', snap.xmr, cfg) + shareValueMicros('rvn', snap.rvn, cfg);
+            const payoutExact = grossMicros * MINING_PAYOUT_RATE + leftover;
+            const payMicros = Math.floor(payoutExact);
+            if (payMicros <= 0) { continue; } // entry left untouched, nothing to pay yet
 
-        try {
-            await grant(userId, payMicros, {
-                bucket: 'permanent', kind: 'mining', reason: 'mining payout',
-                meta: { xmrDiff: snap.xmr, rvnDiff: snap.rvn },
-            });
-        } catch (e) {
-            console.error('[mining] payout failed', userId, e?.message);
-            continue; // entry left entirely unchanged, retried next flush
+            try {
+                await grant(userId, payMicros, {
+                    bucket: 'permanent', kind: 'mining', reason: 'mining payout',
+                    meta: { xmrDiff: snap.xmr, rvnDiff: snap.rvn },
+                });
+            } catch (e) {
+                console.error('[mining] payout failed', userId, e?.message);
+                continue; // entry left entirely unchanged, retried next flush
+            }
+            // Success: subtract only what we just paid for, keep anything that
+            // accrued during the await, and carry the sub-micro remainder.
+            a.diffByCoin.xmr -= snap.xmr;
+            a.diffByCoin.rvn -= snap.rvn;
+            a.leftoverMicros = payoutExact - payMicros;
+            results.push({ userId, grantedMicros: payMicros });
         }
-        // Success: subtract only what we just paid for, keep anything that
-        // accrued during the await, and carry the sub-micro remainder.
-        a.diffByCoin.xmr -= snap.xmr;
-        a.diffByCoin.rvn -= snap.rvn;
-        a.leftoverMicros = payoutExact - payMicros;
-        results.push({ userId, grantedMicros: payMicros });
+        return results;
+    } finally {
+        _flushing = false;
     }
-    return results;
 }
 
 export function startPayoutLoop({ intervalMs = 60_000 } = {}) {

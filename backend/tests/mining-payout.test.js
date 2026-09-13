@@ -47,3 +47,37 @@ test('flush does not lose difficulty recorded while a grant is in flight', async
     assert.equal(out2.length, 1);
     assert.equal(out2[0].grantedMicros, 40_000); // 80% of $0.05
 });
+
+test('a second overlapping flush is a no-op and does not double-pay', async () => {
+    _getAccrual().clear();
+    const cfg = { valuation: { xmr: { usdPerDiff: 0.0000001 }, rvn: { usdPerDiff: 0 } } };
+    recordAcceptedShare('u3', 'xmr', 1_000_000); // gross $0.10 -> pays 80_000
+
+    const grants = [];
+    let releaseFirstGrant;
+    const held = new Promise((resolve) => { releaseFirstGrant = resolve; });
+
+    // The first flush's grant() blocks until we release it, so the second
+    // flush() call below is guaranteed to start while the first is still
+    // in flight.
+    const firstFlush = flushPayouts({
+        cfg,
+        grant: async (userId, micros) => { await held; grants.push([userId, micros]); return micros; },
+    });
+
+    const secondFlush = await flushPayouts({
+        cfg,
+        grant: async (userId, micros) => { grants.push([userId, micros]); return micros; },
+    });
+    assert.deepEqual(secondFlush, [], 'a flush already in flight makes the second call a no-op');
+
+    releaseFirstGrant();
+    const firstResult = await firstFlush;
+    assert.equal(firstResult.length, 1);
+    assert.equal(firstResult[0].grantedMicros, 80_000);
+
+    // Exactly one grant happened — the entry was paid once, not twice.
+    assert.equal(grants.length, 1);
+    const a = _getAccrual().get('u3');
+    assert.equal(a.diffByCoin.xmr, 0);
+});

@@ -13,12 +13,29 @@ import { recordAcceptedShare } from './accounting.js';
  *  - upstreamFactory({ coin, cfg, worker }) -> upstream emitting 'accepted'
  *  - resolveToken(raw) -> userId (defaults to MinerSession.resolveToken)
  */
+// TODO(real-pool): the default upstreamFactory below is NOT production-ready
+// even once a poolUrl is set. Two things are still required before flipping
+// MINING_PROXY_ENABLED=1:
+//  (a) this parsing must correctly resolve the pool's own host/port (done
+//      here), rather than reusing the PROXY's own bind port; and
+//  (b) RealUpstream must actually detect upstream acceptance — parse the
+//      pool's JSON-RPC replies on its 'data' event and emit 'accepted' with
+//      the real difficulty, the way FakeUpstream does synthetically for
+//      tests today. Without (b) no share is ever counted against a real pool.
+function parsePoolEndpoint(poolUrl) {
+    const raw = String(poolUrl || '').trim();
+    if (!raw) return { host: undefined, port: undefined };
+    const [host, portStr] = raw.split(':');
+    const port = portStr ? Number(portStr) : undefined;
+    return { host: host || undefined, port: Number.isFinite(port) ? port : undefined };
+}
+
 export function startStratumProxy({
     port = miningConfig().proxyBindPort,
-    upstreamFactory = ({ coin, cfg, worker }) => new RealUpstream({
-        host: cfg[coin]?.poolUrl, // deferred: unset until a real pool/wallet is configured
-        port, wallet: cfg[coin]?.wallet, worker,
-    }),
+    upstreamFactory = ({ coin, cfg, worker }) => {
+        const { host, port: poolPort } = parsePoolEndpoint(cfg[coin]?.poolUrl);
+        return new RealUpstream({ host, port: poolPort, wallet: cfg[coin]?.wallet, worker });
+    },
     resolveToken = (raw) => MinerSession.resolveToken(raw),
     cfg = miningConfig(),
 } = {}) {
