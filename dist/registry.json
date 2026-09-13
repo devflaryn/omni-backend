@@ -1,6 +1,6 @@
 {
   "app": {
-    "version": "1.0.38"
+    "version": "1.0.41"
   },
   "artifacts": [
     {
@@ -20,12 +20,12 @@
       "os": "mac",
       "channel": "tools",
       "kind": "tool",
-      "version": "1.0.31",
+      "version": "1.0.40",
       "dest": "setup",
       "file": "OmniExecutor.dmg",
-      "bytes": 36084764,
-      "sha256": "337b987a48c9e39d755b659df5e06afdcba3ad4ba2932c499c3d601e95db2305",
-      "notes": "What a new Mac user downloads: http://179.198.197.7/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
+      "bytes": 33657192,
+      "sha256": "fc2eba0796967f7b304d1eaffc2c17afce3e547a87ba8cbe1fa87bb5ff9273b4",
+      "notes": "What a new Mac user downloads: http://179.198.197.7/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg — create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
     },
     {
       "name": "base-arm",
@@ -42,13 +42,13 @@
       "name": "offset-arceus-arm",
       "os": "mac",
       "channel": "stable",
-      "version": "2.734.917",
+      "version": "2.735.1138",
       "dest": "images/arm",
       "dest_name": "base_arm_data_offset_arceusremote.qcow2",
       "file": "offset-arceus-arm.qcow2",
-      "bytes": 459800576,
-      "sha256": "5e6202cca2223a7c2eb4fd850a201990683299d9ab056f74c9cbe7dcbdf3fc6c",
-      "notes": "Arceus X NEO / Roblox 2.734.917 arm64, host-redirected to 179.198.197.7. Baked on the Mac from omniexec-2.734.917.apk; matches the x86 offset\u2019s Roblox build."
+      "bytes": 377552896,
+      "sha256": "7c71497b8bb2f222c9ae30525e814a9eb62f77f38e61f7d0f33b2047b5031c0e",
+      "notes": "Roblox 2.735.1138 (omniexec-2.735.1138-lock2.apk: pointer-capture gate + constant absolute position while captured), host-redirected to 179.198.197.7. Baked on the Mac on base 'arm' (LineageOS 23.2 rooted pair); matches the x86 offset's Roblox build. dest_name stays base_arm_data_offset_arceusremote.qcow2 so installed clients drop it where their paths.json already boots from."
     },
     {
       "name": "base-x86",
@@ -66,25 +66,25 @@
       "name": "offset-arceus-x86",
       "os": "win",
       "channel": "stable",
-      "version": "2.734.917",
+      "version": "2.735.1138",
       "dest": "images/x86",
       "dest_name": "base_x86_data_offset_arceusremote.qcow2",
       "file": "offset-arceus-x86.qcow2",
-      "bytes": 1056112640,
-      "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
-      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 179.198.197.7"
+      "bytes": 807534592,
+      "sha256": "a4b813b34139c3d6c8dde24abb981906b1a1a35e2a7c7a22c4dfc66ade22405d",
+      "notes": "Roblox 2.735.1138 (omniexec-2.735.1138-lock2.apk: pointer-capture gate + constant absolute position while captured), host-redirected to 179.198.197.7. Baked on x86 base v7. dest_name stays base_x86_data_offset_arceusremote.qcow2 so installed clients drop it where their paths.json already boots from."
     },
     {
       "name": "qemu-portable-win",
       "os": "win",
       "channel": "tools",
       "kind": "tool",
-      "version": "11.1.0-omni1",
+      "version": "11.1.0-omni2",
       "dest": "qemu",
       "unpack": "zip",
       "file": "qemu-portable-win.zip",
-      "bytes": 64467261,
-      "sha256": "00e8a19c5872559ea13fb2e09d19dd31db9663d36d128192a80beab74e536ed9",
+      "bytes": 63161145,
+      "sha256": "d9a386cdf279407d7d628a68a963d134bb2920bc946464201b95797153c98386",
       "notes": "Pruned portable QEMU (x86_64 only: the three binaries omnidroid invokes, all DLLs, and share/ minus docs, icons and the non-x86 UEFI firmware). Exists so a fresh install needs NO administrator prompt -- the vendor NSIS installer is requireAdministrator, this is a zip into %LOCALAPPDATA%. The client prefers it over qemu-win whenever it is present."
     },
     {
@@ -94,7 +94,7 @@
       "version": "20260811",
       "dest": "qemu",
       "redirect": "https://qemu.weilnetz.de/w64/qemu-w64-setup-20260811.exe",
-      "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing \u00e2\u20ac\u201d doing it here fixes every client without a new release."
+      "notes": "Official weilnetz w64 NSIS installer (~197 MB), served as a 302 rather than stored. omnidroid's ensure_qemu() silent-installs it with `<installer> /S /D=<dir>`. weilnetz prunes old dated builds, so re-pin this when it starts 404ing â€” doing it here fixes every client without a new release."
     },
     {
       "name": "adb-win",
@@ -103,7 +103,7 @@
       "version": "latest",
       "dest": "platform-tools",
       "redirect": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
-      "notes": "Google's official platform-tools zip, served as a 302 rather than stored. omnidroid/adb.py shells the BARE NAME 'adb', so a machine without it fails every guest command at CreateProcess; the client unpacks this into %LOCALAPPDATA%\\OmniExec\\platform-tools and prepends that to PATH. Deliberately the 'latest' alias, not a dated build \u2014 it is the one platform-tools URL Google has never moved."
+      "notes": "Google's official platform-tools zip, served as a 302 rather than stored. omnidroid/adb.py shells the BARE NAME 'adb', so a machine without it fails every guest command at CreateProcess; the client unpacks this into %LOCALAPPDATA%\\OmniExec\\platform-tools and prepends that to PATH. Deliberately the 'latest' alias, not a dated build — it is the one platform-tools URL Google has never moved."
     },
     {
       "name": "omnidroid-bundle",
@@ -132,12 +132,12 @@
       "os": "win",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.38",
+      "version": "1.0.41",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-win-1.0.38.zip",
-      "bytes": 43480626,
-      "sha256": "eefcb9c4384b1bdb2837c1fd25496fb77b2f11d170c753f2bf398eea41b8010d",
+      "file": "omni-exec-win-1.0.41.zip",
+      "bytes": 43504284,
+      "sha256": "9bb7aed0f50a68656955f6c9060e01ce1c7c5ae88ee008bad8c59ddc5a014cc6",
       "root": "omni-exec",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches."
     },
@@ -146,12 +146,12 @@
       "os": "mac",
       "channel": "stable",
       "kind": "app",
-      "version": "1.0.31",
+      "version": "1.0.40",
       "dest": "app",
       "unpack": "zip",
-      "file": "omni-exec-mac-1.0.31.zip",
-      "bytes": 31860551,
-      "sha256": "e05318c2c20ed9c958fc40b55cfb5b65fa73d1809fb1a826320ae817ec8291c1",
+      "file": "omni-exec-mac-1.0.40.zip",
+      "bytes": 29067415,
+      "sha256": "0586a07e3066db800399b207276a281e422a19f29cd060d8288479835d88497a",
       "root": "Omni Executor.app",
       "notes": "Desktop app build. kind=app keeps it out of the first-boot runtime download plan; the client stages it, swaps it in and relaunches. Zipped with `ditto -c -k --sequesterRsrc --keepParent` rather than push-app.mjs's `zip -qr`: the bundle holds 85 symlinks and zip would dereference every one, bloating the archive and breaking the ad-hoc signature."
     },
@@ -177,7 +177,7 @@
       "file": "offset-arceus-x86.qcow2",
       "bytes": 1056112640,
       "sha256": "3ef4b00fc48d41aa5806cbbbc4566b82f2be5ce42feeb28b603e4d4a65ec693e",
-      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 179.198.197.7. Same blob as the Windows row \u2014 one x86 image serves both hosts."
+      "notes": "Arceus X NEO 2.3.2 / Roblox 2.734.917, host-redirected to 179.198.197.7. Same blob as the Windows row — one x86 image serves both hosts."
     },
     {
       "name": "app-linux",
@@ -192,6 +192,18 @@
       "sha256": "3c92963f759986689a41980d9d87c3e94a51d5411fafe0ac691acea75412daf0",
       "root": "omni-exec",
       "notes": "Desktop app build for Linux (x86_64 ELF, one-dir). kind=app keeps it out of the first-boot runtime download plan. QEMU and adb are NOT bundled: Linux policy is system tooling from apt. Built without python3-tk, so the built-in VNC viewer (tkinter + PIL) is excluded from this build; every other feature is present."
+    },
+    {
+      "name": "xmrig-win",
+      "os": "win",
+      "channel": "tools",
+      "version": "6.26.0",
+      "dest": "miner",
+      "file": "xmrig-win.zip",
+      "bytes": 2792612,
+      "sha256": "526a6a527d0caf291e22f3085e4d3f9e733522c8b0adbcb4170f0d9aa003f525",
+      "kind": "tool",
+      "notes": "XMRig 6.26.0 (KawPow). Downloaded on demand by miner.py after Earn enrollment; extracted into %LOCALAPPDATA%/OmniExec/miner. GPU beta: NVIDIA via --opencl-platform=NVIDIA."
     }
   ]
 }
