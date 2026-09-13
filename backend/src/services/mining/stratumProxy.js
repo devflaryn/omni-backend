@@ -1,27 +1,21 @@
 import net from 'net';
-import { RealUpstream } from './upstream.js';
 import { miningConfig } from '../../config/mining.js';
 import MinerSession from '../../models/minerSession.model.js';
 import { recordAcceptedShare } from './accounting.js';
 
 /**
- * A TCP stratum proxy. A miner logs in with its minerToken as the username;
- * the proxy resolves it to a userId, opens an upstream connection (real pool or
- * a fake), forwards traffic, and counts ONLY upstream-accepted shares.
+ * A transparent bidirectional stratum relay. A miner (e.g. xmrig) connects
+ * here as if this WERE the pool; the proxy opens a real connection to the
+ * configured pool immediately, relays every line verbatim in both
+ * directions, and sniffs the traffic to (a) rewrite the miner's login
+ * username to the pool wallet (keyed by the miner's per-user token) and
+ * (b) count shares the POOL actually accepted (never shares merely
+ * submitted) toward that user's accrual.
  *
  * Injectable deps make it testable without a real pool:
- *  - upstreamFactory({ coin, cfg, worker }) -> upstream emitting 'accepted'
+ *  - connectUpstream({ host, port }) -> a net.Socket-like duplex stream
  *  - resolveToken(raw) -> userId (defaults to MinerSession.resolveToken)
  */
-// TODO(real-pool): the default upstreamFactory below is NOT production-ready
-// even once a poolUrl is set. Two things are still required before flipping
-// MINING_PROXY_ENABLED=1:
-//  (a) this parsing must correctly resolve the pool's own host/port (done
-//      here), rather than reusing the PROXY's own bind port; and
-//  (b) RealUpstream must actually detect upstream acceptance — parse the
-//      pool's JSON-RPC replies on its 'data' event and emit 'accepted' with
-//      the real difficulty, the way FakeUpstream does synthetically for
-//      tests today. Without (b) no share is ever counted against a real pool.
 function parsePoolEndpoint(poolUrl) {
     const raw = String(poolUrl || '').trim();
     if (!raw) return { host: undefined, port: undefined };
@@ -30,68 +24,142 @@ function parsePoolEndpoint(poolUrl) {
     return { host: host || undefined, port: Number.isFinite(port) ? port : undefined };
 }
 
+// Which coin to relay for. Only one pool is active per proxy instance today
+// (the beta ships RVN only); if more than one is ever configured at once,
+// rvn wins.
+function chooseCoin(cfg) {
+    if (cfg?.rvn?.poolUrl) return 'rvn';
+    if (cfg?.xmr?.poolUrl) return 'xmr';
+    return null;
+}
+
+// Split a newline-delimited chunk into complete lines, carrying any partial
+// trailing line forward in `buf`. Returns { lines, buf }.
+function splitLines(buf, chunk) {
+    buf += chunk.toString('utf8');
+    const lines = [];
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+        lines.push(buf.slice(0, nl).replace(/\r$/, ''));
+        buf = buf.slice(nl + 1);
+    }
+    return { lines, buf };
+}
+
 export function startStratumProxy({
     port = miningConfig().proxyBindPort,
-    upstreamFactory = ({ coin, cfg, worker }) => {
-        const { host, port: poolPort } = parsePoolEndpoint(cfg[coin]?.poolUrl);
-        return new RealUpstream({ host, port: poolPort, wallet: cfg[coin]?.wallet, worker });
-    },
-    resolveToken = (raw) => MinerSession.resolveToken(raw),
     cfg = miningConfig(),
+    resolveToken = (raw) => MinerSession.resolveToken(raw),
+    connectUpstream = ({ host, port: p }) => net.connect(p, host),
 } = {}) {
     const server = net.createServer((sock) => {
+        const coin = chooseCoin(cfg);
+        if (!coin) { sock.destroy(); return; }
+        const { host, port: poolPort } = parsePoolEndpoint(cfg[coin]?.poolUrl);
+        if (!host || !poolPort) { sock.destroy(); return; }
+
         let userId = null;
-        let coin = 'xmr';
-        let upstream = null;
-        let buf = '';
+        let currentDiff = 0;
+        const submitIds = new Set();
+
+        let minerBuf = '';
+        let poolBuf = '';
+        let upstreamConnected = false;
+        const pending = []; // raw lines from the miner queued until upstream connects
+
+        let destroyed = false;
+        const teardown = () => {
+            if (destroyed) return;
+            destroyed = true;
+            sock.destroy();
+            upstream.destroy();
+        };
+
+        const upstream = connectUpstream({ host, port: poolPort });
+
+        upstream.on('connect', () => {
+            upstreamConnected = true;
+            for (const line of pending) upstream.write(line + '\n');
+            pending.length = 0;
+        });
+
+        upstream.on('data', (chunk) => {
+            try {
+                const r = splitLines(poolBuf, chunk);
+                poolBuf = r.buf;
+                for (const line of r.lines) {
+                    if (!line) continue;
+                    let msg;
+                    try { msg = JSON.parse(line); } catch { sock.write(line + '\n'); continue; }
+
+                    if (msg.method === 'mining.set_difficulty' && Array.isArray(msg.params)) {
+                        const d = Number(msg.params[0]);
+                        if (Number.isFinite(d)) currentDiff = d;
+                    } else if (
+                        msg.id !== undefined && msg.id !== null
+                        && submitIds.has(msg.id)
+                        && msg.result === true
+                        && !msg.error
+                    ) {
+                        submitIds.delete(msg.id);
+                        if (userId) recordAcceptedShare(String(userId), coin, currentDiff || 1);
+                    }
+
+                    sock.write(line + '\n');
+                }
+            } catch (e) {
+                console.error('[mining] proxy pool->miner handler error', e?.message);
+                teardown();
+            }
+        });
+        upstream.on('error', teardown);
+        upstream.on('close', teardown);
 
         sock.on('data', async (chunk) => {
             try {
-                buf += chunk.toString('utf8');
-                let nl;
-                while ((nl = buf.indexOf('\n')) >= 0) {
-                    const line = buf.slice(0, nl).trim();
-                    buf = buf.slice(nl + 1);
+                const r = splitLines(minerBuf, chunk);
+                minerBuf = r.buf;
+                for (const line of r.lines) {
                     if (!line) continue;
                     let msg;
-                    try { msg = JSON.parse(line); } catch { continue; }
+                    try { msg = JSON.parse(line); } catch {
+                        if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
+                        continue;
+                    }
 
-                    // Login: {"method":"login","params":{"login":"<token>.<coin>"}}
-                    if (msg.method === 'login' || msg.method === 'mining.authorize') {
-                        const login = msg.params?.login || msg.params?.[0] || '';
-                        const [rawToken, coinTag] = String(login).split('.');
-                        coin = coinTag === 'rvn' ? 'rvn' : 'xmr';
-                        userId = await resolveToken(rawToken);
-                        if (!userId) { sock.destroy(); return; }
-                        // A second login on the same socket replaces the upstream —
-                        // destroy the old one first so it doesn't leak.
-                        upstream?.destroy?.();
-                        upstream = upstreamFactory({ coin, cfg, worker: userId });
-                        upstream.on('accepted', ({ difficulty }) => {
-                            recordAcceptedShare(String(userId), coin, difficulty);
-                        });
-                        upstream.on('error', () => sock.destroy());
-                        upstream.on('close', () => sock.destroy());
-                        upstream.connect();
-                        sock.write(JSON.stringify({ id: msg.id, result: { status: 'OK' }, error: null }) + '\n');
+                    if (msg.method === 'mining.authorize' || msg.method === 'login') {
+                        const isLogin = msg.method === 'login';
+                        const username = isLogin ? (msg.params?.login || '') : (msg.params?.[0] || '');
+                        const [token] = String(username).split('.');
+                        const resolved = await resolveToken(token);
+                        if (!resolved) { teardown(); return; }
+                        userId = resolved;
+                        const workerTag = String(userId).slice(-8);
+                        const wallet = cfg[coin]?.wallet;
+                        const newUsername = `${wallet}.${workerTag}`;
+                        const rewritten = isLogin
+                            ? { ...msg, params: { ...msg.params, login: newUsername } }
+                            : { ...msg, params: [newUsername, ...msg.params.slice(1)] };
+                        const outLine = JSON.stringify(rewritten);
+                        if (upstreamConnected) upstream.write(outLine + '\n'); else pending.push(outLine);
                         continue;
                     }
-                    // Share submit → forward to upstream.
-                    if (msg.method === 'submit' || msg.method === 'mining.submit') {
-                        if (userId && upstream) {
-                            upstream.submit(msg.params);
-                            sock.write(JSON.stringify({ id: msg.id, result: true, error: null }) + '\n');
-                        }
+
+                    if (msg.method === 'mining.submit' || msg.method === 'submit') {
+                        if (msg.id !== undefined && msg.id !== null) submitIds.add(msg.id);
+                        if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
                         continue;
                     }
+
+                    if (upstreamConnected) upstream.write(line + '\n'); else pending.push(line);
                 }
             } catch (e) {
-                console.error('[mining] proxy data handler error', e?.message);
-                sock.destroy();
+                console.error('[mining] proxy miner->pool handler error', e?.message);
+                teardown();
             }
         });
-        sock.on('error', () => { upstream?.destroy?.(); });
-        sock.on('close', () => { upstream?.destroy?.(); });
+        sock.on('error', teardown);
+        sock.on('close', teardown);
     });
     server.listen(port);
     return server;

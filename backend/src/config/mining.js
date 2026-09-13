@@ -1,5 +1,5 @@
 /** Mining is pure config. The real upstream pool + wallet stay unset for now;
- *  the proxy runs against a fake upstream in tests (see services/mining/upstream.js). */
+ *  the proxy relays to a real (or test-fake) pool via services/mining/stratumProxy.js. */
 export function miningConfig() {
     return {
         stratumHost: process.env.MINING_STRATUM_HOST || '179.198.197.7',
