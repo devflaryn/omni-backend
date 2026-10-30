@@ -118,6 +118,33 @@ export function createBtcPayClient({
 }
 
 /**
+ * The checkout link a BUYER can open.
+ *
+ * BTCPay builds `checkoutLink` from the host it was called on, and this server
+ * calls it over loopback (BTCPAY_URL = http://127.0.0.1:23000) -- so every link
+ * it handed back was `http://127.0.0.1:23000/i/<id>`, which in a buyer's
+ * browser is their OWN machine. The order was created, the invoice existed,
+ * and the payment page with the address never opened. The public origin is the
+ * nginx-fronted host (`paywall.omniexec.net`); only the origin changes, the
+ * path and query are BTCPay's.
+ */
+export function publicCheckoutLink(link, publicBase = process.env.BTCPAY_PUBLIC_URL || 'https://paywall.omniexec.net') {
+    if (!link) return link;
+    try {
+        const url = new URL(link);
+        const pub = new URL(publicBase);
+        url.protocol = pub.protocol;
+        url.hostname = pub.hostname;
+        // Explicitly, even when empty: assigning a host with no port KEEPS
+        // the old one, which produced https://paywall.omniexec.net:23000/...
+        url.port = pub.port;
+        return url.toString();
+    } catch {
+        return link;
+    }
+}
+
+/**
  * Verify a webhook actually came from our BTCPay.
  *
  * BTCPay signs the RAW request body with HMAC-SHA256 and sends it as

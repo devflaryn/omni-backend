@@ -4,7 +4,7 @@ import LicenseKey from '../models/licenseKey.model.js';
 import { generateKeyCode } from '../utils/generateKeyCode.js';
 import { PLAN_LABELS } from '../utils/applyLicenseKey.js';
 import { revokeKey } from '../services/revokeKey.js';
-import { createBtcPayClient, verifyWebhookSignature } from '../services/btcpay.js';
+import { createBtcPayClient, publicCheckoutLink, verifyWebhookSignature } from '../services/btcpay.js';
 import { createEmailClient } from '../services/email.js';
 import { PLANS, priceOrder, formatUsd, isPurchasablePlan, MAX_QUANTITY } from '../../../shared/plans.js';
 
@@ -149,7 +149,7 @@ export const createCheckout = async (req, res, next) => {
             success: true,
             data: {
                 orderId: order._id,
-                payUrl: invoice.checkoutLink,
+                payUrl: publicCheckoutLink(invoice.checkoutLink),
                 totalUsd: formatUsd(priced.totalUsdCents),
             },
         });
@@ -281,7 +281,13 @@ export const webhook = async (req, res, next) => {
         }
 
         const event = JSON.parse(raw.toString('utf8'));
-        const order = await Order.findOne({ invoiceId: event.invoiceId });
+        // An event with no invoice id must match NOTHING. Mongoose drops an
+        // `undefined` filter value, so `findOne({ invoiceId: undefined })` is
+        // `findOne({})` -- an arbitrary order, which a paid event would then
+        // fulfil.
+        const order = typeof event.invoiceId === 'string' && event.invoiceId
+            ? await Order.findOne({ invoiceId: event.invoiceId })
+            : null;
 
         // Unknown invoice: ack anyway. Returning an error makes BTCPay retry a
         // delivery that can never succeed.

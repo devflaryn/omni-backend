@@ -47,9 +47,17 @@ const orderSchema = new mongoose.Schema({
     },
     // Unique so a replayed webhook can never create a second order, and so
     // findOneAndUpdate on the invoice id is safe to use as the idempotency key.
+    //
+    // NO DEFAULT, and that is load-bearing. A sparse index skips documents
+    // where the field is MISSING, not where it is null -- null is a value like
+    // any other. With `default: null` every order was saved with null before
+    // its invoice existed, so the first order whose invoice creation failed
+    // (the node still syncing, 2026-09-02) kept that null forever and every
+    // later checkout died on E11000 ("Duplicate field value entered") before
+    // BTCPay was even called: the buyer saw the product, gave an email, and
+    // never got a payment page. Absent until there is an invoice; then unique.
     invoiceId: {
         type: String,
-        default: null,
         unique: true,
         sparse: true,
     },

@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { PLANS, priceOrder, formatUsd, isPurchasablePlan } from '../../shared/plans.js';
-import { verifyWebhookSignature } from '../src/services/btcpay.js';
+import { publicCheckoutLink, verifyWebhookSignature } from '../src/services/btcpay.js';
 import { computeSubscriptionAfterRevoke } from '../src/services/revokeKey.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -143,4 +143,28 @@ test('revoke: an account with no dated plan is left alone', () => {
     const key = { plan: '30_day', grantedMs: 30 * DAY, subscriptionBefore: { plan: null, expiresAt: null } };
     const current = { plan: null, expiresAt: null };
     assert.deepEqual(computeSubscriptionAfterRevoke(current, key), current);
+});
+
+/* ------------------------------------------------------------- the order row */
+
+test('a new order has NO invoiceId until its invoice exists', async () => {
+    // A sparse unique index skips a MISSING field, not a null one. With
+    // `default: null` the first order whose invoice failed kept null forever
+    // and every later checkout died on E11000 before BTCPay was called.
+    const { default: Order } = await import('../src/models/order.model.js');
+    const order = new Order({
+        email: 'a@b.co', planId: 'month', quantity: 1, unitPriceUsdCents: 1999,
+        subtotalUsdCents: 1999, totalUsdCents: 1999,
+    });
+    assert.equal(order.toObject().invoiceId, undefined);
+    assert.ok(!('invoiceId' in order.toObject()));
+    const path = Order.schema.path('invoiceId');
+    assert.equal(path.options.unique, true);
+    assert.equal(path.options.sparse, true);
+});
+
+test('the pay link a buyer gets is the public BTCPay host, never loopback', () => {
+    const link = publicCheckoutLink('http://127.0.0.1:23000/i/BEkfcZ?lang=en', 'https://paywall.omniexec.net');
+    assert.equal(link, 'https://paywall.omniexec.net/i/BEkfcZ?lang=en');
+    assert.equal(publicCheckoutLink(null, 'https://paywall.omniexec.net'), null);
 });
