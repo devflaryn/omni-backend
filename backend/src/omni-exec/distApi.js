@@ -28,7 +28,13 @@ export function createDistRouter(registry) {
       // and a base image has no business being swapped in and relaunched.
       kind: a.kind || 'runtime',
     }));
-    res.json({ ok: true, os, channel, app: { version: registry.appVersion }, artifacts });
+    // A channel of its own (`native`, from 1.0.0) numbers its app afresh: the
+    // registry-wide version is the `stable` line's, and reporting 1.0.44 on a
+    // 1.0.0 channel lands in every client's installed.json. `stable` keeps the
+    // registry-wide value it has always served.
+    const appArt = channel !== 'stable' && artifacts.find(a => a.kind === 'app');
+    const appVersion = appArt ? appArt.version : registry.appVersion;
+    res.json({ ok: true, os, channel, app: { version: appVersion }, artifacts });
   });
 
   // Stream a blob by name: Range-resumable, sha256-tagged, 302-to-CDN capable.
