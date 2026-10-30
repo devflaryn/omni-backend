@@ -8,24 +8,26 @@
       "os": "win",
       "channel": "tools",
       "kind": "tool",
-      "version": "3",
+      "version": "1.0.0",
       "dest": "setup",
-      "file": "OmniExecutorSetup.exe",
-      "bytes": 12975160,
-      "sha256": "419cb69af8a7a86fb63925c9583d9f28dea2fc3f81dcd71fcee3f1cb52e4bd56",
-      "notes": "The installer a new user downloads: http://179.198.197.7/omni/dist/blob/setup-win A stub -- it fetches the current app-win build from this same API and sha256-verifies it, so it does NOT need rebuilding for each app release. Exists because a .zip makes Windows mark every extracted file with the Internet zone, which stopped the .NET assembly loader loading Python.Runtime.dll and killed the app on launch. Files an installer writes carry no such mark. Installs per-user to %LOCALAPPDATA%\\Programs\\OmniExecutor -- no administrator. Version 3 (2026-09-02) points bootstrap at the new VPS 179.198.197.7. Version 2 (2026-08-22) replaces an existing install FILE BY FILE via bootstrap.replace_tree: version 1 could not replace a folder pinned by a live QEMU or window-lock and failed with WinError 183. REBUILD AND REPUBLISH THIS whenever installer.py or bootstrap.py changes -- the stub bundles both, and a fix left unbuilt is a fix that is not shipped."
+      "file": "OmniExecutorSetup-1.0.0.exe",
+      "bytes": 31060705,
+      "sha256": "176a6e6a9b81dec06078c50c48ca9224a3592f656db933947aa9da7f81787c14",
+      "notes": "The installer on the download page. Carries the app build (Inno Setup on Windows) -- nothing is downloaded at install.",
+      "unpack": null
     },
     {
       "name": "setup-mac",
       "os": "mac",
       "channel": "tools",
       "kind": "tool",
-      "version": "1.0.40",
+      "version": "1.0.0",
       "dest": "setup",
-      "file": "OmniExecutor.dmg",
-      "bytes": 33657192,
-      "sha256": "fc2eba0796967f7b304d1eaffc2c17afce3e547a87ba8cbe1fa87bb5ff9273b4",
-      "notes": "What a new Mac user downloads: http://179.198.197.7/omni/dist/blob/setup-mac A plain UDZO disk image holding the .app plus an /Applications symlink, built with hdiutil rather than create-dmg \u2014 create-dmg styles the window with Finder AppleScript, which needs a logged-in GUI session and times out over ssh. Unlike setup-win this is NOT a stub: it carries the build, so it has to be republished per release. The app inside is ad-hoc signed with no Team ID, so Gatekeeper refuses the first launch until the user right-clicks -> Open."
+      "file": "OmniExecutorSetup-1.0.0.dmg",
+      "bytes": 25335085,
+      "sha256": "f551eb229b5bbd934122a9e9dafc880ba19e7c00a2caaf8529f79a82c6ba110e",
+      "notes": "The installer on the download page. Carries the app build (Inno Setup on Windows) -- nothing is downloaded at install.",
+      "unpack": null
     },
     {
       "name": "base-arm",
@@ -204,6 +206,82 @@
       "sha256": "526a6a527d0caf291e22f3085e4d3f9e733522c8b0adbcb4170f0d9aa003f525",
       "kind": "tool",
       "notes": "XMRig 6.26.0 (KawPow). Downloaded on demand by miner.py after Earn enrollment; extracted into %LOCALAPPDATA%/OmniExec/miner. GPU beta: NVIDIA via --opencl-platform=NVIDIA."
+    },
+    {
+      "name": "app-win-native",
+      "os": "win",
+      "channel": "native",
+      "kind": "app",
+      "version": "1.0.0",
+      "dest": "app",
+      "unpack": "zip",
+      "file": "omni-exec-win-1.0.0-native.zip",
+      "notes": "Native-omnidroid desktop app build. kind=app keeps it out of the first-boot plan; the updater fetches it by version.",
+      "bytes": 39633783,
+      "sha256": "05fe43dd45b86e1483e30d47d39ce3075ecf3ee987ca53d7e451e18cec018561"
+    },
+    {
+      "name": "omnidroid-win",
+      "os": "win",
+      "channel": "native",
+      "version": "b2ee8a81",
+      "dest": "omnidroid",
+      "unpack": "zip",
+      "file": "omnidroid-win-b2ee8a81.zip",
+      "notes": "The native omnidroid bundle (binaries, roblox plugin, Android sysroot), unpacked to <runtime>/omnidroid.",
+      "bytes": 810561358,
+      "sha256": "a66d51d28a4ede792bafc8d3c528beaf25191d27c18bd4cbdfd44184418a1886"
+    },
+    {
+      "name": "omniexec-apk-win",
+      "os": "win",
+      "channel": "native",
+      "version": "v0",
+      "dest": "apk",
+      "unpack": null,
+      "dest_name": "OmniExecutor.apk",
+      "file": "OmniExecutor-v0.apk",
+      "notes": "The executor APK every instance runs.",
+      "bytes": 167403909,
+      "sha256": "65a27fb02dbb056a120c1c43dab7905ef2bffa97f313e8b7a6c445a3a9b1eded"
+    },
+    {
+      "name": "app-mac-native",
+      "os": "mac",
+      "channel": "native",
+      "kind": "app",
+      "version": "1.0.0",
+      "dest": "app",
+      "unpack": "zip",
+      "file": "omni-exec-mac-1.0.0-native.zip",
+      "notes": "Native-omnidroid desktop app build. kind=app keeps it out of the first-boot plan; the updater fetches it by version.",
+      "bytes": 23126803,
+      "sha256": "e0404b88accbfc36ce9d1bf4636bdf13085af2c3df3993363d0a97b0077c5163"
+    },
+    {
+      "name": "omnidroid-mac",
+      "os": "mac",
+      "channel": "native",
+      "version": "b2ee8a81",
+      "dest": "omnidroid",
+      "unpack": "zip",
+      "file": "omnidroid-mac-b2ee8a81.zip",
+      "notes": "The native omnidroid bundle (binaries, roblox plugin, Android sysroot), unpacked to <runtime>/omnidroid.",
+      "bytes": 809005445,
+      "sha256": "3c0ee86d52614c11c30290d659ec70e4573f4923e09b57cc20cd4ff86b2c4971"
+    },
+    {
+      "name": "omniexec-apk-mac",
+      "os": "mac",
+      "channel": "native",
+      "version": "v0",
+      "dest": "apk",
+      "unpack": null,
+      "dest_name": "OmniExecutor.apk",
+      "file": "OmniExecutor-v0.apk",
+      "notes": "The executor APK every instance runs.",
+      "bytes": 167403909,
+      "sha256": "65a27fb02dbb056a120c1c43dab7905ef2bffa97f313e8b7a6c445a3a9b1eded"
     }
   ]
 }
