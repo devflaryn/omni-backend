@@ -22,12 +22,17 @@ export const PLATFORMS = [
       meta: "x86-64 · glibc 2.31+",       note: "Portable AppImage." },
 ];
 
+// The version on the page is the app build a NEW download gets: the `native`
+// channel's kind:"app" artifact (1.0.0 onward, native omnidroid). The manifest's
+// top-level app.version is the old QEMU line's (1.0.44), kept for clients that
+// predate the channel -- showing it here advertised a build nobody downloads.
 export async function fetchVersion() {
     try {
-        const r = await fetch(`/omni/dist/manifest?os=win`, { cache: "no-store" });
+        const r = await fetch(`/omni/dist/manifest?os=win&channel=native`, { cache: "no-store" });
         if (!r.ok) return null;
         const j = await r.json();
-        return j?.app?.version ?? null;
+        const app = (j?.artifacts || []).find((a) => a.kind === "app");
+        return app?.version ?? null;
     } catch { return null; }
 }
 

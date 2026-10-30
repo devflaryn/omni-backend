@@ -18,21 +18,19 @@ import "./demo-console.css";
 /* ------------------------------------------------------------------- data */
 
 const FLEET = [
-    { name: "VelvetOtter912", arch: "x86", base: "bliss-15", running: true, mode: "farming", vnc: 5901, adb: 5555 },
-    { name: "CinderHawk304", arch: "x86", base: "bliss-15", running: true, mode: "gaming", win: [1280, 720], adb: 5557 },
-    { name: "LunarBison77", arch: "arm", base: "bliss-15", running: false },
-    { name: "QuartzRaven158", arch: "x86", base: "bliss-15", running: false },
-    { name: "DriftMarmot421", arch: "x86", base: "bliss-15", running: false },
-    { name: "EmberLynx630", arch: "x86", base: "bliss-15", running: true, mode: "farming", vnc: 5906, adb: 5561 },
-    { name: "OpalHeron245", arch: "x86", base: "bliss-15", running: false },
-    { name: "NimbusVole883", arch: "arm", base: "bliss-15", running: false },
-    { name: "SableFinch519", arch: "x86", base: "bliss-15", running: false },
-    { name: "TundraStoat228", arch: "x86", base: "bliss-15", running: false },
-    { name: "CobaltShrew660", arch: "arm", base: "bliss-15", running: false },
-    { name: "PrairieLark414", arch: "x86", base: "bliss-15", running: false },
+    { name: "VelvetOtter912", running: true },
+    { name: "CinderHawk304", running: true },
+    { name: "LunarBison77", running: false },
+    { name: "QuartzRaven158", running: false },
+    { name: "DriftMarmot421", running: false },
+    { name: "EmberLynx630", running: true },
+    { name: "OpalHeron245", running: false },
+    { name: "NimbusVole883", running: false },
+    { name: "SableFinch519", running: false },
+    { name: "TundraStoat228", running: false },
+    { name: "CobaltShrew660", running: false },
+    { name: "PrairieLark414", running: false },
 ];
-
-const FARM_MEMBERS = FLEET.slice(0, 9).map((a) => a.name);
 
 const AUTOEXEC = ["00-antiafk.lua", "10-collect.lua", "20-rejoin.lua"];
 
@@ -44,7 +42,6 @@ const NAV = [
     { id: "home", label: "Home" },
     { id: "editor", label: "Editor" },
     { id: "accounts", label: "Accounts" },
-    { id: "farming", label: "Farming" },
     { id: "stattrack", label: "Stat Track" },
     { id: "network", label: "Network" },
     { id: "settings", label: "Settings" },
@@ -356,7 +353,7 @@ export default function DemoConsole() {
     const [theme, setTheme] = useState("dark");
     const [tab, setTab] = useState("home");
     const [accounts, setAccounts] = useState(FLEET);
-    const [launch, setLaunch] = useState({ mode: "gaming", gpu: "auto", place: "8737899170" });
+    const [launch, setLaunch] = useState({ place: "8737899170" });
     const [stattrack, setStattrack] = useState(true);
     // The editor buffer lives up here so edits survive a tab switch and the
     // Home tab's "Recent scripts" line count stays honest.
@@ -373,15 +370,12 @@ export default function DemoConsole() {
     const start = (name, delay = 0) => {
         patch(name, { busy: "Starting" });
         after(1500 + delay, () =>
-            patch(name, {
-                busy: null, running: true, mode: launch.mode,
-                ...(launch.mode === "farming" ? { vnc: 5910, adb: 5560, win: undefined } : { win: [1280, 720], adb: 5560, vnc: undefined }),
-            })
+            patch(name, { busy: null, running: true })
         );
     };
     const stop = (name, delay = 0) => {
         patch(name, { busy: "Stopping" });
-        after(900 + delay, () => patch(name, { busy: null, running: false, mode: undefined, vnc: undefined, win: undefined }));
+        after(900 + delay, () => patch(name, { busy: null, running: false }));
     };
     const startMany = (names) => names.forEach((n, i) => start(n, i * 350));
     const stopMany = (names) => names.forEach((n, i) => stop(n, i * 200));
@@ -391,12 +385,12 @@ export default function DemoConsole() {
 
     const subtitle =
         tab === "accounts" ? `${accounts.length} accounts${running.length ? ` · ${running.length} running` : ""}`
-        : tab === "editor" || tab === "farming" ? "Engine ready"
+        : tab === "editor" ? "Engine ready"
         : tab === "network" ? "Both links answer"
         : tab === "settings" ? "devflaryn"
         : running.length ? `${running.length} running` : "Engine ready";
 
-    const railIcons = { home: I.HomeDuo, editor: I.CodeDuo, accounts: I.UsersDuo, farming: I.GridDuo, stattrack: I.ChartDuo, network: I.SignalDuo, settings: I.GearDuo };
+    const railIcons = { home: I.HomeDuo, editor: I.CodeDuo, accounts: I.UsersDuo, stattrack: I.ChartDuo, network: I.SignalDuo, settings: I.GearDuo };
 
     return (
         <div ref={fitRef} className="dc-fit" style={{ height: DESIGN_H * scale }}>
@@ -452,7 +446,6 @@ export default function DemoConsole() {
                             onStart={start} onStop={stop} onStartMany={startMany} onStopMany={stopMany}
                         />
                     )}
-                    {tab === "farming" && <FarmingTab accounts={accounts} />}
                     {tab === "stattrack" && <StatTrackTab accounts={accounts} enabled={stattrack} onToggle={setStattrack} />}
                     {tab === "network" && <NetworkTab />}
                     {tab === "settings" && <SettingsTab theme={theme} onTheme={setTheme} />}
@@ -560,7 +553,6 @@ function HomeTab({ accounts, running, stopped, scriptLines, onGo, onLaunchAll, o
                                     <button type="button" className="dc-row dc-rule-b" onClick={() => onGo("accounts")}>
                                         <Lamp sm tone={a.busy ? "busy" : a.running ? "live" : "off"} pulse={Boolean(a.busy)} />
                                         <span className="dc-row__name">{a.name}</span>
-                                        {a.running && a.mode && <Chip tone="live" cap>{a.mode}</Chip>}
                                         <span className="dc-row__meta">{a.busy ? `${a.busy}…` : a.running ? "Running" : "Stopped"}</span>
                                     </button>
                                 </li>
@@ -985,8 +977,7 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
     const status = (a) =>
         a.busy ? `${a.busy}…`
         : !a.running ? "Stopped"
-        : a.win ? `Window ${a.win[0]}×${a.win[1]} · ADB ${a.adb}`
-        : `VNC ${a.vnc} · ADB ${a.adb}`;
+        : "Running · its own window";
 
     return (
         <div className="dc-view">
@@ -1034,10 +1025,7 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
                                     <div className="dc-acct__body">
                                         <div className="dc-acct__title">
                                             <span>{a.name}</span>
-                                            <Chip upper tone={a.arch === "arm" ? "accent" : undefined}>{a.arch}</Chip>
-                                            <Chip>{a.base}</Chip>
-                                            {a.running && a.mode && <Chip tone="live" cap>{a.mode}</Chip>}
-                                        </div>
+                                            </div>
                                         <div className="dc-acct__status">
                                             <Lamp sm tone={a.busy ? "busy" : a.running ? "live" : "off"} pulse={Boolean(a.busy)} />
                                             <span>{status(a)}</span>
@@ -1046,7 +1034,6 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
                                     <div className="dc-acct__buttons" onClick={(e) => e.stopPropagation()}>
                                         {a.running ? (
                                             <>
-                                                <IconBtn label="Open viewer" tone="accent"><I.Monitor /></IconBtn>
                                                 <IconBtn label="Stop instance" disabled={Boolean(a.busy)} onClick={() => onStop(a.name)}><I.Stop style={{ width: 14, height: 14 }} /></IconBtn>
                                             </>
                                         ) : (
@@ -1065,23 +1052,6 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
                 <section className="dc-card" style={{ maxHeight: 552, display: "flex", flexDirection: "column" }}>
                     <PanelHead icon={I.Rocket} title="Launch" />
                     <div className="dc-bay" style={{ overflowY: "auto" }}>
-                        <Field label="Mode" hint={launch.mode === "farming" ? "Headless, minimal footprint — built to run by the dozen." : "A visible window with native keyboard and mouse."}>
-                            <span className="dc-select">
-                                <select className="dc-input" value={launch.mode} onChange={(e) => onLaunch({ ...launch, mode: e.target.value })}>
-                                    <option value="gaming">Gaming — playable window</option>
-                                    <option value="farming">Farming — headless</option>
-                                </select>
-                            </span>
-                        </Field>
-                        <Field label="Graphics" hint="Auto takes the host GPU when one is usable.">
-                            <span className="dc-select">
-                                <select className="dc-input" value={launch.gpu} onChange={(e) => onLaunch({ ...launch, gpu: e.target.value })}>
-                                    <option value="auto">Auto</option>
-                                    <option value="host">Host GPU</option>
-                                    <option value="soft">Software</option>
-                                </select>
-                            </span>
-                        </Field>
                         <Field label="Place ID" hint="Leave empty to land on the Roblox home screen.">
                             <input
                                 className="dc-input dc-mono"
@@ -1106,19 +1076,19 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
                                     )}
                                     <p className="dc-bay__note">
                                         {bulkStopped.length
-                                            ? `${bulk.length} selected · ${launch.mode} mode, all at once`
+                                            ? `${bulk.length} selected · all at once`
                                             : `${bulk.length} selected · all already running`}
                                     </p>
                                 </>
                             ) : (
                                 <>
                                     <Btn solid lg full disabled={!selectedAccount || Boolean(selectedAccount?.busy)}
-                                        onClick={() => selectedAccount && !selectedAccount.running && onStart(selectedAccount.name)}>
-                                        {selectedAccount?.running ? <><I.Monitor />Open viewer</> : <><I.Play />Launch</>}
+                                        onClick={() => selectedAccount && (selectedAccount.running ? onStop(selectedAccount.name) : onStart(selectedAccount.name))}>
+                                        {selectedAccount?.running ? <><I.Stop />Stop</> : <><I.Play />Launch</>}
                                     </Btn>
                                     <p className="dc-bay__note">
                                         {selectedAccount?.busy ? `${selectedAccount.busy} ${selectedAccount.name}…`
-                                            : selectedAccount ? (selectedAccount.running ? `${selectedAccount.name} is running here.` : `Boots ${selectedAccount.name} in ${launch.mode} mode.`)
+                                            : selectedAccount ? (selectedAccount.running ? `${selectedAccount.name} is running here.` : `Launches ${selectedAccount.name}, signed in.`)
                                             : "Pick an account on the left, or tick several."}
                                     </p>
                                 </>
@@ -1131,60 +1101,7 @@ function AccountsTab({ accounts, launch, onLaunch, onStart, onStop, onStartMany,
     );
 }
 
-/* ---------------------------------------------------------------- Farming */
-
-function FarmingTab({ accounts }) {
-    const members = accounts.filter((a) => FARM_MEMBERS.includes(a.name));
-    const runningHere = members.filter((a) => a.running);
-    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-    return (
-        <div className="dc-view">
-            <div className="dc-view__inner dc-rise">
-                <div>
-                    <h2 className="dc-h2">Farming<Chip tone="premium">Premium</Chip></h2>
-                    <p className="dc-sub">The console for running many instances unattended.</p>
-                </div>
-
-                <div className="dc-stats">
-                    <StatTile icon={I.Grid} label="In farm" value={members.length} />
-                    <StatTile icon={I.HeartPulse} label="Running here" value={runningHere.length} live={runningHere.length > 0} />
-                    <StatTile icon={I.Users} label="Stopped" value={members.length - runningHere.length} />
-                    <StatTile icon={I.Users} label="Elsewhere" value={0} />
-                </div>
-
-                <section className="dc-card">
-                    <PanelHead icon={I.Grid} title="Fleet" count={members.length} right={<Btn sm>Edit members</Btn>} />
-                    <ul className="dc-list">
-                        {members.map((a) => (
-                            <li key={a.name}>
-                                <div className="dc-row dc-rule-b">
-                                    <Lamp sm tone={a.busy ? "busy" : a.running ? "live" : "off"} pulse={Boolean(a.busy)} />
-                                    <span className="dc-row__name">{a.name}</span>
-                                    {a.running && a.mode && <Chip tone="live" cap>{a.mode}</Chip>}
-                                    <span className="dc-row__meta">{a.busy ? `${a.busy}…` : a.running ? "Running" : "Stopped"}</span>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-
-                <section className="dc-card">
-                    <PanelHead icon={I.Clock} title="Schedule" right={<Chip>Not active yet</Chip>} />
-                    <div className="dc-pad">
-                        <div className="dc-daychips">
-                            {DAYS.map((d) => <Chip key={d}>{d}</Chip>)}
-                        </div>
-                        <p className="dc-bay__note" style={{ textAlign: "left" }}>
-                            Start and stop the farm on a clock. The controls arm once the
-                            supervisor ships — nothing here pretends to fire yet.
-                        </p>
-                    </div>
-                </section>
-            </div>
-        </div>
-    );
-}
+/* ------------------------------------------------------------- Stat Track */
 
 function StatTile({ icon: Icon, label, value, live }) {
     return (
@@ -1200,7 +1117,7 @@ function StatTile({ icon: Icon, label, value, live }) {
 function StatTrackTab({ accounts, enabled, onToggle }) {
     const [open, setOpen] = useState("VelvetOtter912");
     const running = accounts.filter((a) => a.running);
-    const tracking = enabled ? accounts.filter((a) => a.running && a.mode === "farming") : [];
+    const tracking = enabled ? accounts.filter((a) => a.running) : [];
 
     const metrics = (i) => [
         { label: "Gems", value: `${(12.4 + i * 1.7).toFixed(2)}M` },
@@ -1388,7 +1305,7 @@ function SettingsTab({ theme, onTheme }) {
                                     <input className="dc-input" value={name} onChange={(e) => touch(e.target.value)} spellCheck={false} />
                                 </Field>
                                 <Field label="Status">
-                                    <input className="dc-input" defaultValue="farming the fleet" spellCheck={false} />
+                                    <input className="dc-input" defaultValue="running the fleet" spellCheck={false} />
                                 </Field>
                             </div>
                         </section>
@@ -1410,10 +1327,9 @@ function SettingsTab({ theme, onTheme }) {
                         <section className="dc-card">
                             <PanelHead icon={I.Cpu} title="Engine" right={<Chip tone="live">Ready</Chip>} />
                             <div className="dc-pad" style={{ gap: 0 }}>
-                                <dl className="dc-kv dc-rule-b" style={{ margin: 0 }}><dt>Contract</dt><dd>1.0</dd></dl>
-                                <dl className="dc-kv dc-rule-b" style={{ margin: 0 }}><dt>QEMU</dt><dd>Yes</dd></dl>
-                                <dl className="dc-kv dc-rule-b" style={{ margin: 0 }}><dt>adb</dt><dd>Yes</dd></dl>
-                                <dl className="dc-kv" style={{ margin: 0 }}><dt>Base image</dt><dd>bliss-15</dd></dl>
+                                <dl className="dc-kv dc-rule-b" style={{ margin: 0 }}><dt>Engine</dt><dd>omnidroid</dd></dl>
+                                <dl className="dc-kv dc-rule-b" style={{ margin: 0 }}><dt>Pool</dt><dd>up on port 7457</dd></dl>
+                                <dl className="dc-kv" style={{ margin: 0 }}><dt>Executor APK</dt><dd>present</dd></dl>
                             </div>
                         </section>
                     </div>

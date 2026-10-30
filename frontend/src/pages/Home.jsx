@@ -6,7 +6,7 @@ import CheckoutModal from "../components/CheckoutModal";
 import { fetchVersion } from "../lib/dist";
 
 /*
- * Four tiers, one axis: how long the premium features (farming + stat track)
+ * Four tiers, one axis: how long the premium features (stat track, the fleet)
  * stay unlocked. Every paid tier also gifts account credits, and the gift
  * grows with the commitment — that's the whole comparison, so the cards keep
  * the same feature list and let price, duration and credits do the talking.
@@ -19,7 +19,7 @@ const PLANS = [
         cadence: "forever",
         features: [
             "The Omni Executor desktop app",
-            "Playable Android VM sessions",
+            "Native Android sessions — no VM, no emulator",
             "Auto-login & auto-join",
             "Auto-updating builds",
         ],
@@ -32,7 +32,7 @@ const PLANS = [
         cadence: "month",
         features: [
             "Everything in Free",
-            "Headless farming at scale",
+            "Your whole account list, side by side",
             "Stat track across the fleet",
             "$5 credit for the captcha solver",
         ],
@@ -45,7 +45,7 @@ const PLANS = [
         cadence: "3 months",
         features: [
             "Everything in Free",
-            "Headless farming at scale",
+            "Your whole account list, side by side",
             "Stat track across the fleet",
             "$20 credit for the captcha solver",
         ],
@@ -58,7 +58,7 @@ const PLANS = [
         cadence: "once",
         features: [
             "Everything in Free",
-            "Headless farming at scale",
+            "Your whole account list, side by side",
             "Stat track across the fleet",
             "$35 credit for the captcha solver",
         ],
@@ -68,9 +68,9 @@ const PLANS = [
 ];
 
 const STEPS = [
-    { n: "01", t: "Spin up", d: "A clean Android VM boots from a warm pool in under a second — no snapshots, no waiting." },
+    { n: "01", t: "Spin up", d: "omnidroid keeps Android warm on your machine, so a launch is the game opening in a window of its own — no VM, no emulator." },
     { n: "02", t: "Sign in & join", d: "Your saved cookie logs the client in and drops it straight into the place. No taps, no login screen." },
-    { n: "03", t: "Farm or play", d: "Run it headless by the dozen, or take a low-latency session with native keyboard and mouse." },
+    { n: "03", t: "Play or run many", d: "One account or your whole list at once — each in its own window, with native keyboard and mouse." },
 ];
 
 export default function Home() {
@@ -164,7 +164,7 @@ export default function Home() {
                 <div className="shell">
                     <div className="section-head">
                         <span className="eyebrow">The flow</span>
-                        <h2>One launch, from cold VM to a client in the world.</h2>
+                        <h2>One launch, from a click to a client in the world.</h2>
                         <p>Every instance follows the same three beats — nothing to babysit between them.</p>
                     </div>
                     <ol className="flow__grid">
